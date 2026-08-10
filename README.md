@@ -4,6 +4,7 @@ Home Assistant Multiscrape example configuration for Xfinity / Comcast Internet 
 
 You might have to change the IP address. Put xfinity_username and xfinity_password in /config/secrets.yaml and the text below in /config/configuration.yaml
 
+```yaml
 multiscrape:
   - name: Xfinity
     resource: "http://10.0.0.1/network_setup.jst"
@@ -65,3 +66,4 @@ multiscrape:
         unique_id: xfinity_serial_number
         select: ".module.forms.dev_label .form-row:nth-of-type(3) span.value"
         value_template: "{{ value.strip() }}"
+```
