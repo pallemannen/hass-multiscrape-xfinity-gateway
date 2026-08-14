@@ -13,10 +13,11 @@
     "error": {
       "cannot_connect": "Kunde inte ansluta till gatewayen. Kontrollera IP-adressen och att den är nåbar.",
       "invalid_auth": "Ogiltigt användarnamn eller lösenord.",
-      "unknown": "Oväntat fel, Unexpected error, kontrollera loggarna i Home Assistant för detaljer."
+      "unknown": "Oväntat fel, kontrollera loggarna i Home Assistant för detaljer."
     },
     "abort": {
-      "already_configured": "Xfinity Gateway är redan installerad."
+      "already_configured": "Xfinity Gateway är redan installerad.",
+      "multiscrape_not_installed": "Integrationen multiscrape måste installeras först (via HACS: danieldotnl/ha-multiscrape). Xfinity Gateway använder den internt och fungerar inte utan den."
     }
   }
 }
