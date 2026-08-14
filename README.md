@@ -5,6 +5,10 @@ Home Assistant Multiscrape example configuration for Xfinity / Comcast Internet 
 You might have to change the IP address. Put xfinity_username and xfinity_password in /config/secrets.yaml and the text below in /config/configuration.yaml
 
 ```yaml
+
+```
+
+```yaml
 multiscrape:
   - name: Xfinity
     resource: "http://10.0.0.1/network_setup.jst"
@@ -67,3 +71,22 @@ multiscrape:
         select: ".module.forms.dev_label .form-row:nth-of-type(3) span.value"
         value_template: "{{ value.strip() }}"
 ```
+
+If you want an HA style Connectivity sensor, go Settings -> Devices and Services -> Helpers and click "Create Helper". Choose Template -> Binary Sensor. Put `{{ states('sensor.xfinity_connection_status') | lower | trim == 'active' }}` into the state field and choose "Connectivity" as the device class.
+
+If you want an HA style date and time field for the last reboot, go Settings -> Devices and Services -> Helpers and click "Create Helper". Choose Template -> Sensor and put:
+```
+{% set current_time = strptime(states('sensor.xfinity_current_time'), '%Y-%m-%d %H:%M:%S') %}
+{% set src = states('sensor.xfinity_time_since_last_reboot') %}
+{% set d  = (src | regex_findall('(\d+)\s*day')  | first | default(0)) | int(0) %}
+{% set h  = (src | regex_findall('(\d+)h:')       | first | default(0)) | int(0) %}
+{% set mi = (src | regex_findall('(\d+)m:')       | first | default(0)) | int(0) %}
+{% set s  = (src | regex_findall('(\d+)s')        | first | default(0)) | int(0) %}
+{% set uptime = d*86400 + h*3600 + mi*60 + s %}
+{% if uptime > 0 %}
+  {{ (current_time.replace(tzinfo=now().tzinfo) - timedelta(seconds=uptime)).isoformat() }}
+{% else %}
+  unavailable
+{% endif %}
+```
+and choose "Timestamp" as the device class.
