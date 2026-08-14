@@ -13,26 +13,27 @@ from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, CONF_VALUE_TEMPLATE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
 
-from custom_components.multiscrape.const import CONF_SELECT as MS_CONF_SELECT
 from custom_components.multiscrape.entity import MultiscrapeEntity
-from custom_components.multiscrape.selector import Selector
 
 from .const import (
+    CONNECTION_STATUS_FIELD_KEY,
     CURRENT_TIME_FIELD_KEY,
     CURRENT_TIME_FORMAT,
     DOMAIN,
     FIELDS,
+    ICON_ACTIVE,
+    ICON_INACTIVE,
+    LAST_REBOOT_ICON,
+    STATIC_ICONS,
     SYSTEM_UPTIME_FIELD_KEY,
-    VALUE_TEMPLATE_STRIP,
     GatewayField,
 )
+from .util import build_selector
 
 _LOGGER = logging.getLogger(__name__)
 ENTITY_ID_FORMAT = "sensor.{}"
@@ -64,17 +65,6 @@ def _parse_uptime(text: str | None) -> timedelta | None:
         hours=int(hours_match.group("h")) if hours_match else 0,
         minutes=int(minutes_match.group("m")) if minutes_match else 0,
         seconds=int(seconds_match.group("s")) if seconds_match else 0,
-    )
-
-
-def _build_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
-    return Selector(
-        hass,
-        {
-            CONF_NAME: name,
-            MS_CONF_SELECT: Template(select, hass),
-            CONF_VALUE_TEMPLATE: Template(VALUE_TEMPLATE_STRIP, hass),
-        },
     )
 
 
@@ -113,12 +103,14 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
         )
-        self._selector = _build_selector(hass, field.name, field.select)
+        self._field_key = field.key
+        self._attr_icon = STATIC_ICONS.get(field.key)
+        self._selector = build_selector(hass, field.name, field.select)
 
     def _update_sensor(self) -> None:
         """Update state from the scraper data."""
         try:
-            self._attr_native_value = self.scraper.scrape(
+            value = self.scraper.scrape(
                 self._selector, self._name, context=self.coordinator.scrape_context
             )
         except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
@@ -127,6 +119,11 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
             _LOGGER.warning(
                 "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
             )
+            return
+
+        self._attr_native_value = value
+        if self._field_key == CONNECTION_STATUS_FIELD_KEY:
+            self._attr_icon = ICON_ACTIVE if value == "Active" else ICON_INACTIVE
 
 
 class LastRebootSensor(MultiscrapeEntity, SensorEntity):
@@ -145,16 +142,17 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, "Last Reboot", None, False, None, None, {})
 
+        self._attr_icon = LAST_REBOOT_ICON
         self._attr_unique_id = "xfinity_gateway_last_reboot"
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
         )
         current_time_field = next(f for f in FIELDS if f.key == CURRENT_TIME_FIELD_KEY)
         uptime_field = next(f for f in FIELDS if f.key == SYSTEM_UPTIME_FIELD_KEY)
-        self._current_time_selector = _build_selector(
+        self._current_time_selector = build_selector(
             hass, current_time_field.name, current_time_field.select
         )
-        self._uptime_selector = _build_selector(hass, uptime_field.name, uptime_field.select)
+        self._uptime_selector = build_selector(hass, uptime_field.name, uptime_field.select)
 
     def _update_sensor(self) -> None:
         """Update state from the scraper data."""

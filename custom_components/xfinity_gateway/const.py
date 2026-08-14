@@ -92,3 +92,23 @@ SYSTEM_UPTIME_FIELD_KEY = "system_uptime"
 
 # Format the gateway reports its own "Current Time" field in, e.g. "2026-08-14 09:12:03".
 CURRENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# Connection Status and Connectivity get a state-dependent icon instead (see sensor.py /
+# binary_sensor.py), so connection_status is deliberately absent from this map.
+ICON_ACTIVE = "mdi:check-network-outline"
+ICON_INACTIVE = "mdi:close-network-outline"
+LAST_REBOOT_ICON = "mdi:clock-time-four-outline"
+
+STATIC_ICONS: dict[str, str] = {
+    "current_time": "mdi:clock-time-four-outline",
+    "system_uptime": "mdi:clock-time-four-outline",
+    "external_ip_address": "mdi:ip-network-outline",
+    "external_default_gateway": "mdi:play-network-outline",
+    "external_ipv6_address": "mdi:ip-network-outline",
+    "external_ipv6_default_gateway": "mdi:play-network-outline",
+    "primary_dns": "mdi:dns-outline",
+    "secondary_dns": "mdi:dns-outline",
+    "primary_ipv6_dns": "mdi:dns-outline",
+    "secondary_ipv6_dns": "mdi:dns-outline",
+    "serial_number": "mdi:numeric",
+}

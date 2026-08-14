@@ -8,17 +8,20 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, CONF_VALUE_TEMPLATE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.template import Template
 
-from custom_components.multiscrape.const import CONF_SELECT as MS_CONF_SELECT
 from custom_components.multiscrape.entity import MultiscrapeEntity
-from custom_components.multiscrape.selector import Selector
 
-from .const import CONNECTION_STATUS_FIELD_KEY, DOMAIN, FIELDS, VALUE_TEMPLATE_STRIP
+from .const import (
+    CONNECTION_STATUS_FIELD_KEY,
+    DOMAIN,
+    FIELDS,
+    ICON_ACTIVE,
+    ICON_INACTIVE,
+)
+from .util import build_selector
 
 _LOGGER = logging.getLogger(__name__)
 ENTITY_ID_FORMAT = "binary_sensor.{}"
@@ -57,14 +60,7 @@ class GatewayConnectivitySensor(MultiscrapeEntity, BinarySensorEntity):
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
         )
         status_field = next(f for f in FIELDS if f.key == CONNECTION_STATUS_FIELD_KEY)
-        self._selector = Selector(
-            hass,
-            {
-                CONF_NAME: status_field.name,
-                MS_CONF_SELECT: Template(status_field.select, hass),
-                CONF_VALUE_TEMPLATE: Template(VALUE_TEMPLATE_STRIP, hass),
-            },
-        )
+        self._selector = build_selector(hass, status_field.name, status_field.select)
 
     def _update_sensor(self) -> None:
         """Update state from the scraper data."""
@@ -79,3 +75,6 @@ class GatewayConnectivitySensor(MultiscrapeEntity, BinarySensorEntity):
             _LOGGER.warning(
                 "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
             )
+            return
+
+        self._attr_icon = ICON_ACTIVE if self._attr_is_on else ICON_INACTIVE

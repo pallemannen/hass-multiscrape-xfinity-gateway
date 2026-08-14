@@ -8,6 +8,14 @@
           "password": "Password",
           "scan_interval": "Scan interval (seconds)"
         }
+      },
+      "reconfigure": {
+        "data": {
+          "host": "Gateway IP address",
+          "username": "Username",
+          "password": "Password",
+          "scan_interval": "Scan interval (seconds)"
+        }
       }
     },
     "error": {
@@ -17,7 +25,8 @@
     },
     "abort": {
       "already_configured": "Xfinity Gateway is already configured.",
-      "multiscrape_not_installed": "The multiscrape integration must be installed first (via HACS: danieldotnl/ha-multiscrape). Xfinity Gateway uses it internally and won't work without it."
+      "multiscrape_not_installed": "The multiscrape integration must be installed first (via HACS: danieldotnl/ha-multiscrape). Xfinity Gateway uses it internally and won't work without it.",
+      "reconfigure_successful": "Xfinity Gateway settings updated."
     }
   }
 }
