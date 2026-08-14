@@ -1,5 +1,7 @@
 # hass-multiscrape-xfinity-gateway
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?category=Integration&repository=hass-multiscrape-xfinity-gateway&owner=pallemannen)
+
 A Home Assistant integration for monitoring an Xfinity/Comcast Internet Gateway: connection status, uptime, IP addresses, DNS servers, and more.
 
 **Requires [multiscrape](https://github.com/danieldotnl/ha-multiscrape) to also be installed** - this integration uses it under the hood to talk to the gateway. Home Assistant will refuse to start this integration, with a clear error, if multiscrape isn't installed.
