@@ -39,6 +39,10 @@ No YAML editing or manually edited config files needed - everything is set up th
 
 All of these are created automatically when you set up the integration - nothing extra to configure.
 
-## Known limitation
+## HACS
 
-The Last Reboot sensor expects the gateway's uptime to be reported in a format like `5 day(s) 3h:12m:45s`. If your gateway reports it differently, that one sensor will log a warning and stay unavailable rather than show a wrong time - please open an issue with the raw value from the System Uptime sensor so the format can be added.
+More info about HACS can be found at https://www.hacs.xyz/
+
+## License
+
+MIT - see [LICENSE](LICENSE).
