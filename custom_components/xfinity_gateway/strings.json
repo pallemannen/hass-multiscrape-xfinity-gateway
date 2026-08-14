@@ -16,7 +16,8 @@
       "unknown": "Unexpected error, check the Home Assistant logs for details."
     },
     "abort": {
-      "already_configured": "Xfinity Gateway is already configured."
+      "already_configured": "Xfinity Gateway is already configured.",
+      "multiscrape_not_installed": "The multiscrape integration must be installed first (via HACS: danieldotnl/ha-multiscrape). Xfinity Gateway uses it internally and won't work without it."
     }
   }
 }

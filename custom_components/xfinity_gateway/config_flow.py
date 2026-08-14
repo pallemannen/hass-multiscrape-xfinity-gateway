@@ -19,6 +19,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
+from homeassistant.loader import IntegrationNotFound, async_get_integration
 
 from custom_components.multiscrape.coordinator import create_content_request_manager
 from custom_components.multiscrape.http_session import create_http_session
@@ -77,6 +78,18 @@ class XfinityGatewayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial (and only) step."""
+        # multiscrape only needs to be *installed* (its modules importable on
+        # disk) - we call its functions directly and never rely on its own
+        # async_setup() having run, so we deliberately don't declare it as a
+        # hard `dependencies` entry in manifest.json (that would require HA
+        # to successfully set it up, which fails if the user has no
+        # `multiscrape:` YAML config, e.g. because they use it solely for
+        # this integration). Check installation explicitly instead.
+        try:
+            await async_get_integration(self.hass, "multiscrape")
+        except IntegrationNotFound:
+            return self.async_abort(reason="multiscrape_not_installed")
+
         errors: dict[str, str] = {}
 
         if user_input is not None:
