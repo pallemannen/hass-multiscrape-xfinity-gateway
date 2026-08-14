@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import CONF_NAME, CONF_VALUE_TEMPLATE
@@ -19,13 +19,21 @@ from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.template import Template
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-from homeassistant.util.dt import utcnow
+from homeassistant.util import dt as dt_util
 
 from custom_components.multiscrape.const import CONF_SELECT as MS_CONF_SELECT
 from custom_components.multiscrape.entity import MultiscrapeEntity
 from custom_components.multiscrape.selector import Selector
 
-from .const import DOMAIN, FIELDS, SYSTEM_UPTIME_FIELD_KEY, VALUE_TEMPLATE_STRIP, GatewayField
+from .const import (
+    CURRENT_TIME_FIELD_KEY,
+    CURRENT_TIME_FORMAT,
+    DOMAIN,
+    FIELDS,
+    SYSTEM_UPTIME_FIELD_KEY,
+    VALUE_TEMPLATE_STRIP,
+    GatewayField,
+)
 
 _LOGGER = logging.getLogger(__name__)
 ENTITY_ID_FORMAT = "sensor.{}"
@@ -127,7 +135,14 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
 
 
 class LastRebootSensor(MultiscrapeEntity, SensorEntity):
-    """Derived timestamp sensor: now minus the scraped system uptime."""
+    """Derived timestamp sensor: the gateway's own reported current time minus its
+    reported system uptime.
+
+    Deliberately anchored to the gateway's own clock (its "Current Time" field)
+    rather than Home Assistant's utcnow() - this mirrors the previously-validated
+    manual Template Helper this integration replaces, and avoids drift if the
+    gateway's clock and HA's clock disagree.
+    """
 
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -139,16 +154,23 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
         )
+        current_time_field = next(f for f in FIELDS if f.key == CURRENT_TIME_FIELD_KEY)
         uptime_field = next(f for f in FIELDS if f.key == SYSTEM_UPTIME_FIELD_KEY)
-        self._selector = _build_selector(hass, uptime_field.name, uptime_field.select)
+        self._current_time_selector = _build_selector(
+            hass, current_time_field.name, current_time_field.select
+        )
+        self._uptime_selector = _build_selector(hass, uptime_field.name, uptime_field.select)
 
     def _update_sensor(self) -> None:
         """Update state from the scraper data."""
         try:
-            raw = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
+            raw_current_time = self.scraper.scrape(
+                self._current_time_selector, self._name, context=self.coordinator.scrape_context
             )
-            duration = _parse_uptime(raw)
+            raw_uptime = self.scraper.scrape(
+                self._uptime_selector, self._name, context=self.coordinator.scrape_context
+            )
+            duration = _parse_uptime(raw_uptime)
         except Exception as exception:  # noqa: BLE001
             self.coordinator.request_reauth()
             self._scrape_error = True
@@ -164,8 +186,22 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
                 "gateway's uptime format may differ from what this "
                 "integration expects - please open an issue with the raw value.",
                 self.scraper.name,
-                raw,
+                raw_uptime,
             )
             return
 
-        self._attr_native_value = utcnow() - duration
+        try:
+            naive_current_time = datetime.strptime(raw_current_time, CURRENT_TIME_FORMAT)
+        except (TypeError, ValueError) as exception:
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Could not parse gateway current time %r (expected format %s): %s",
+                self.scraper.name,
+                raw_current_time,
+                CURRENT_TIME_FORMAT,
+                exception,
+            )
+            return
+
+        gateway_now = naive_current_time.replace(tzinfo=dt_util.now().tzinfo)
+        self._attr_native_value = gateway_now - duration

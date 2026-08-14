@@ -87,4 +87,8 @@ FIELDS: tuple[GatewayField, ...] = (
 )
 
 CONNECTION_STATUS_FIELD_KEY = "connection_status"
+CURRENT_TIME_FIELD_KEY = "current_time"
 SYSTEM_UPTIME_FIELD_KEY = "system_uptime"
+
+# Format the gateway reports its own "Current Time" field in, e.g. "2026-08-14 09:12:03".
+CURRENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
