@@ -53,7 +53,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = create_multiscrape_coordinator(
         SCRAPER_CONFIG_NAME, scraper_conf, hass, request_manager, file_manager, scraper
     )
-    await coordinator.async_register_shutdown()
+    # Do NOT call coordinator.async_register_shutdown() here - that's only for
+    # coordinators created outside a config entry context (which is what
+    # multiscrape itself uses it for, in its own YAML-only _async_process_config).
+    # HA core detects we're inside async_setup_entry and wires up this
+    # coordinator's shutdown to the config entry automatically; calling it
+    # manually raises RuntimeError("This should only be used outside of
+    # config entries.").
     await coordinator.async_config_entry_first_refresh()
 
     async def _shutdown_session(_event, _session=session):
