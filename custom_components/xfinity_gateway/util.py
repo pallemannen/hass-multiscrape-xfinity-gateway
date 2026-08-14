@@ -5,11 +5,15 @@ from datetime import timedelta
 
 from homeassistant.const import (
     CONF_HOST,
+    CONF_NAME,
     CONF_PASSWORD,
     CONF_RESOURCE,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
+    CONF_VALUE_TEMPLATE,
 )
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.template import Template
 from homeassistant.helpers.typing import ConfigType
 
 from custom_components.multiscrape.const import (
@@ -21,6 +25,10 @@ from custom_components.multiscrape.const import (
     CONF_PARSER,
     DEFAULT_PARSER,
 )
+from custom_components.multiscrape.const import CONF_SELECT as MS_CONF_SELECT
+from custom_components.multiscrape.selector import Selector
+
+from .const import VALUE_TEMPLATE_STRIP
 
 
 def build_scraper_conf(conf: ConfigType) -> ConfigType:
@@ -45,3 +53,15 @@ def build_scraper_conf(conf: ConfigType) -> ConfigType:
             CONF_FORM_RESUBMIT_ERROR: True,
         },
     }
+
+
+def build_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
+    """Build a multiscrape Selector for a single CSS-selected, stripped-text field."""
+    return Selector(
+        hass,
+        {
+            CONF_NAME: name,
+            MS_CONF_SELECT: Template(select, hass),
+            CONF_VALUE_TEMPLATE: Template(VALUE_TEMPLATE_STRIP, hass),
+        },
+    )
