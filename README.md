@@ -4,15 +4,15 @@
 
 A Home Assistant integration for monitoring an Xfinity/Comcast Internet Gateway: connection status, uptime, IP addresses, DNS servers, and more.
 
-**Requires [multiscrape](https://github.com/danieldotnl/ha-multiscrape) to also be installed** - this integration uses it under the hood to talk to the gateway. Home Assistant will refuse to start this integration, with a clear error, if multiscrape isn't installed.
+**Requires [multiscrape](https://github.com/danieldotnl/ha-multiscrape) to also be installed** - this integration uses it under the hood to talk to the gateway. Home Assistant will refuse to start this integration, with a clear error, if multiscrape isn't installed. 
 
 ## Gateway mode
 
-This is for a gateway running in **bridge mode**. Support for **Wi-Fi (router) mode** is on the to-do list and not available yet.
+This is for a gateway running in **bridge mode**. Support for **WiFi (router) mode** is on the to-do list and not available yet. But even in router mode, all the sensors in this integration should still work - it just won't give you any WiFi-related sensors.
 
 ## Installation
 
-1. Install [multiscrape](https://github.com/danieldotnl/ha-multiscrape) via HACS (custom repository: `danieldotnl/ha-multiscrape`, category "Integration") if you don't already have it.
+1. Install [multiscrape](https://github.com/danieldotnl/ha-multiscrape) via HACS (custom repository: `https://github.com/danieldotnl/ha-multiscrape`, category "Integration") if you don't already have it.
 2. Add this repository to HACS as a custom repository (category "Integration"), then install "Xfinity Gateway".
 3. Restart Home Assistant.
 4. Go to **Settings → Devices & Services → Add Integration**, search for "Xfinity Gateway", and fill in:
