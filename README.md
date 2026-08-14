@@ -2,11 +2,14 @@
 
 Home Assistant Multiscrape example configuration for Xfinity / Comcast Internet Gateway in bridge mode.
 
-You might have to change the IP address. Put xfinity_username and xfinity_password in /config/secrets.yaml and the text below in /config/configuration.yaml
+You might have to change the IP address. Put xfinity_username and xfinity_password in `/config/secrets.yaml`:
 
 ```yaml
-
+xfinity_username: admin
+xfinity_password: PutYourPasswordHere
 ```
+
+And then add this multiscrape configuration in /config/configuration.yaml (or wherever you keep your stuff):'
 
 ```yaml
 multiscrape:
