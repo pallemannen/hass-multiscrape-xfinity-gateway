@@ -7,41 +7,21 @@ form-login-and-scrape logic here.
 
 multiscrape itself only parses its own `multiscrape:` YAML key once, at HA
 startup, and has no runtime API to hand it a scraper config afterwards - so
-rather than trying to feed YAML into multiscrape's own config, this builds
+rather than trying to feed config into multiscrape's own config, this builds
 one scraper/coordinator using the same non-underscore factory functions
 multiscrape uses on itself (see multiscrape/__init__.py's
-_async_process_config), and then dispatches sensor/binary_sensor setup via
-discovery.async_load_platform the same way multiscrape does.
+_async_process_config), and then forwards setup to the sensor/binary_sensor
+platforms via the config entry, the same way any other config-flow
+integration does.
 """
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
-import voluptuous as vol
-from homeassistant.const import (
-    CONF_HOST,
-    CONF_PASSWORD,
-    CONF_RESOURCE,
-    CONF_SCAN_INTERVAL,
-    CONF_USERNAME,
-    EVENT_HOMEASSISTANT_STOP,
-    Platform,
-)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import discovery
-from homeassistant.helpers.typing import ConfigType
 
-from custom_components.multiscrape.const import (
-    CONF_FORM_INPUT,
-    CONF_FORM_RESUBMIT_ERROR,
-    CONF_FORM_SELECT,
-    CONF_FORM_SUBMIT,
-    CONF_FORM_SUBMIT_ONCE,
-    CONF_PARSER,
-    DEFAULT_PARSER,
-)
 from custom_components.multiscrape.coordinator import (
     create_content_request_manager,
     create_multiscrape_coordinator,
@@ -50,55 +30,19 @@ from custom_components.multiscrape.file import create_file_manager
 from custom_components.multiscrape.http_session import create_http_session
 from custom_components.multiscrape.scraper import create_scraper
 
-from .const import DEFAULT_HOST, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import DOMAIN
+from .util import build_scraper_conf
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 SCRAPER_CONFIG_NAME = "xfinity_gateway"
 
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.Schema(
-            {
-                vol.Optional(CONF_HOST, default=DEFAULT_HOST): cv.string,
-                vol.Required(CONF_USERNAME): cv.string,
-                vol.Required(CONF_PASSWORD): cv.string,
-                vol.Optional(
-                    CONF_SCAN_INTERVAL,
-                    default=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
-                ): cv.time_period,
-            }
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
 
-
-def _build_scraper_conf(conf: ConfigType) -> ConfigType:
-    """Build a multiscrape-shaped scraper config for the gateway status page."""
-    host = conf[CONF_HOST]
-    return {
-        CONF_RESOURCE: f"http://{host}/network_setup.jst",
-        CONF_SCAN_INTERVAL: conf[CONF_SCAN_INTERVAL],
-        CONF_PARSER: DEFAULT_PARSER,
-        CONF_FORM_SUBMIT: {
-            CONF_RESOURCE: f"http://{host}/",
-            CONF_FORM_SELECT: "#pageForm",
-            CONF_FORM_INPUT: {
-                CONF_USERNAME: conf[CONF_USERNAME],
-                CONF_PASSWORD: conf[CONF_PASSWORD],
-            },
-            CONF_FORM_SUBMIT_ONCE: True,
-            CONF_FORM_RESUBMIT_ERROR: True,
-        },
-    }
-
-
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the Xfinity Gateway integration."""
-    conf = config[DOMAIN]
-    scraper_conf = _build_scraper_conf(conf)
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Xfinity Gateway from a config entry."""
+    conf = entry.data
+    scraper_conf = build_scraper_conf(conf)
 
     file_manager = await create_file_manager(hass, SCRAPER_CONFIG_NAME, False)
     session = create_http_session(SCRAPER_CONFIG_NAME, scraper_conf, hass, file_manager)
@@ -110,17 +54,30 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         SCRAPER_CONFIG_NAME, scraper_conf, hass, request_manager, file_manager, scraper
     )
     await coordinator.async_register_shutdown()
+    await coordinator.async_config_entry_first_refresh()
 
     async def _shutdown_session(_event, _session=session):
         await _session.async_close()
 
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _shutdown_session)
+    entry.async_on_unload(
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _shutdown_session)
+    )
 
-    hass.data[DOMAIN] = {"coordinator": coordinator, "scraper": scraper}
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "coordinator": coordinator,
+        "scraper": scraper,
+        "session": session,
+    }
 
-    for platform in PLATFORMS:
-        hass.async_create_task(
-            discovery.async_load_platform(hass, platform, DOMAIN, {}, config)
-        )
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        data = hass.data[DOMAIN].pop(entry.entry_id)
+        await data["session"].async_close()
+    return unload_ok

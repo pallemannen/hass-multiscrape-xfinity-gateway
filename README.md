@@ -8,26 +8,15 @@ It depends on and reuses [multiscrape](https://github.com/danieldotnl/ha-multisc
 
 1. Install [multiscrape](https://github.com/danieldotnl/ha-multiscrape) via HACS (custom repository: `danieldotnl/ha-multiscrape`, category "Integration") if you don't already have it.
 2. Add this repository to HACS as a custom repository (category "Integration"), then install "Xfinity Gateway".
-3. Add your gateway credentials to `secrets.yaml`:
+3. Restart Home Assistant.
+4. Go to **Settings -> Devices & Services -> Add Integration**, search for "Xfinity Gateway", and fill in:
+   - **Gateway IP address** (optional, defaults to `10.0.0.1`)
+   - **Username** and **Password** for the gateway's admin login
+   - **Scan interval** in seconds (optional, defaults to `300`)
 
-    ```yaml
-    xfinity_username: admin
-    xfinity_password: PutYourPasswordHere
-    ```
+   The credentials are verified against the gateway during setup - if the host is unreachable or the login is rejected, the form shows an error immediately instead of silently failing later.
 
-4. Add this to `configuration.yaml` (or wherever you keep your package/device config):
-
-    ```yaml
-    xfinity_gateway:
-      host: 10.0.0.1          # optional, defaults to 10.0.0.1
-      username: !secret xfinity_username
-      password: !secret xfinity_password
-      scan_interval: 300      # optional, defaults to 300 seconds
-    ```
-
-5. Restart Home Assistant.
-
-There is no config flow (it's YAML-only, matching how multiscrape itself is configured) and no UI setup step beyond that.
+No YAML editing or `secrets.yaml` entries needed - everything is configured through the UI and stored in Home Assistant's config entry storage.
 
 ## What you get
 

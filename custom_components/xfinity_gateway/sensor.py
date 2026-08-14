@@ -12,13 +12,12 @@ import re
 from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME, CONF_VALUE_TEMPLATE
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.template import Template
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util import dt as dt_util
 
 from custom_components.multiscrape.const import CONF_SELECT as MS_CONF_SELECT
@@ -79,19 +78,15 @@ def _build_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
     )
 
 
-async def async_setup_platform(
+async def async_setup_entry(
     hass: HomeAssistant,
-    config: ConfigType,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the Xfinity Gateway sensors."""
-    data = hass.data[DOMAIN]
+    """Set up the Xfinity Gateway sensors from a config entry."""
+    data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
     scraper = data["scraper"]
-
-    if not coordinator.last_update_success:
-        raise PlatformNotReady
 
     entities: list[SensorEntity] = [
         GatewayFieldSensor(hass, coordinator, scraper, field) for field in FIELDS

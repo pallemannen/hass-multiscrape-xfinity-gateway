@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "host": "Gateway IP address",
+          "username": "Username",
+          "password": "Password",
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the gateway. Check the IP address and that it's reachable.",
+      "invalid_auth": "Invalid username or password.",
+      "unknown": "Unexpected error, check the Home Assistant logs for details."
+    },
+    "abort": {
+      "already_configured": "Xfinity Gateway is already configured."
+    }
+  }
+}
