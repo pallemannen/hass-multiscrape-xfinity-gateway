@@ -89,4 +89,4 @@ If you want an HA style date and time field for the last reboot, go Settings -> 
   unavailable
 {% endif %}
 ```
-and choose "Timestamp" as the device class.
+into the state field and choose "Timestamp" as the device class.
