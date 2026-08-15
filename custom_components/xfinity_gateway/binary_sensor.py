@@ -59,6 +59,7 @@ class GatewayConnectivitySensor(MultiscrapeEntity, BinarySensorEntity):
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
         )
+        self._attr_icon = ICON_INACTIVE
         status_field = next(f for f in FIELDS if f.key == CONNECTION_STATUS_FIELD_KEY)
         self._selector = build_selector(hass, status_field.name, status_field.select)
 
