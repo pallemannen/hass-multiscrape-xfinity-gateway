@@ -8,7 +8,7 @@ A Home Assistant integration for monitoring an Xfinity/Comcast Internet Gateway:
 
 ## Gateway mode
 
-This is for a gateway running in **bridge mode**. Support for **WiFi (router) mode** is on the to-do list and not available yet. But even in router mode, all the sensors in this integration should still work - it just won't give you any WiFi-related sensors.
+This was developed with a gateway running in **bridge mode**. Support for **WiFi (router) mode** has been added as well, but without a WiFi-enabled gateway to test things on, so please submitt an issue if something is not working.
 
 ## Installation
 
@@ -31,6 +31,7 @@ No YAML editing or manually edited config files needed - everything is set up th
 - IP Address, External Default Gateway
 - IPv6 Address, External IPv6 Default Gateway
 - Primary/Secondary DNS, Primary/Secondary IPv6 DNS
+- WiFi information and number of clients
 - Serial Number
 - **Last Reboot** (timestamp, calculated from System Uptime)
 
