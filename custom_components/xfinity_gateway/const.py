@@ -41,7 +41,7 @@ FIELDS: tuple[GatewayField, ...] = (
     ),
     GatewayField(
         "external_ip_address",
-        "IP Address",
+        "External IP Address",
         ".module.forms .form-row:nth-of-type(4) span.value",
     ),
     GatewayField(
@@ -51,7 +51,7 @@ FIELDS: tuple[GatewayField, ...] = (
     ),
     GatewayField(
         "external_ipv6_address",
-        "IPv6 Address",
+        "External IPv6 Address",
         ".module.forms .form-row:nth-of-type(6) span.value",
     ),
     GatewayField(
@@ -103,7 +103,7 @@ FIELDS: tuple[GatewayField, ...] = (
     # scopes to it unambiguously.
     GatewayField(
         "manufacturer",
-        "Vendor",
+        "Manufacturer",
         ".module.forms:nth-of-type(12) .form-row:nth-of-type(2) span.value",
     ),
     GatewayField(
@@ -294,6 +294,9 @@ LAN_DHCP_SERVER_STATUS_FIELD_KEY = "lan_dhcp_server_status"
 WIFI_24GHZ_STATUS_FIELD_KEY = "wifi_24ghz_status"
 WIFI_5GHZ_STATUS_FIELD_KEY = "wifi_5ghz_status"
 WIFI_6GHZ_STATUS_FIELD_KEY = "wifi_6ghz_status"
+WIFI_STATUS_FIELD_KEYS = frozenset(
+    {WIFI_24GHZ_STATUS_FIELD_KEY, WIFI_5GHZ_STATUS_FIELD_KEY, WIFI_6GHZ_STATUS_FIELD_KEY}
+)
 WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_24ghz_client_count"
 WIFI_5GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_5ghz_client_count"
 WIFI_6GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_6ghz_client_count"
@@ -319,6 +322,8 @@ CURRENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 # the Wi-Fi binary sensor, which switches between ICON_WIFI_ON/ICON_WIFI_OFF.
 ICON_ACTIVE = "mdi:check-network-outline"
 ICON_INACTIVE = "mdi:close-network-outline"
+ICON_WIFI_ACTIVE = "mdi:wifi"
+ICON_WIFI_INACTIVE = "mdi:wifi-off"
 ICON_WIFI_ON = "mdi:wifi"
 ICON_WIFI_OFF = "mdi:wifi-off"
 LAST_REBOOT_ICON = "mdi:clock-time-four-outline"
@@ -351,11 +356,8 @@ STATIC_ICONS: dict[str, str] = {
     "lan_netmask": "mdi:lan",
     "lan_dhcp_server_status": ICON_DHCP,
     "lan_client_count": "mdi:lan",
-    "wifi_24ghz_status": "mdi:wifi",
     "wifi_24ghz_client_count": "mdi:wifi-settings",
-    "wifi_5ghz_status": "mdi:wifi",
     "wifi_5ghz_client_count": "mdi:wifi-settings",
-    "wifi_6ghz_status": "mdi:wifi",
     "wifi_6ghz_client_count": "mdi:wifi-settings",
     "lan_1_connection_status": "mdi:lan",
     "lan_2_connection_status": "mdi:lan",

@@ -52,6 +52,9 @@ from .const import (
     WIFI_6GHZ_MAC_ADDRESS_FIELD_KEY,
     WIFI_CLIENT_COUNT_ICON,
     WIFI_MAC_FIELDS,
+    WIFI_STATUS_FIELD_KEYS,
+    ICON_WIFI_ACTIVE,
+    ICON_WIFI_INACTIVE,
     ConnectionStatusField,
     GatewayField,
 )
@@ -155,7 +158,12 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
         )
         self._field_key = field.key
         self._attr_icon = STATIC_ICONS.get(
-            field.key, ICON_INACTIVE if field.key == CONNECTION_STATUS_FIELD_KEY else None
+            field.key,
+            ICON_INACTIVE
+            if field.key == CONNECTION_STATUS_FIELD_KEY
+            else ICON_WIFI_INACTIVE
+            if field.key in WIFI_STATUS_FIELD_KEYS
+            else None,
         )
         self._selector = build_selector(hass, field.name, field.select)
 
@@ -176,6 +184,8 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
         self._attr_native_value = value
         if self._field_key == CONNECTION_STATUS_FIELD_KEY:
             self._attr_icon = ICON_ACTIVE if value == "Active" else ICON_INACTIVE
+        elif self._field_key in WIFI_STATUS_FIELD_KEYS:
+            self._attr_icon = ICON_WIFI_ACTIVE if value == "Active" else ICON_WIFI_INACTIVE
 
 
 class NumericGatewayFieldSensor(GatewayFieldSensor):
@@ -203,7 +213,12 @@ class NumericGatewayFieldSensor(GatewayFieldSensor):
             return
 
         try:
-            self._attr_native_value = int(raw_value.strip())
+            # value_template's `parse_result=True` rendering already turns a
+            # bare numeric string like "0" into a native Python int before it
+            # gets here, so raw_value isn't reliably a str - str() first
+            # makes int(str(x).strip()) work whether it's already an int
+            # or still text.
+            self._attr_native_value = int(str(raw_value).strip())
         except (TypeError, ValueError) as exception:
             self._scrape_error = True
             _LOGGER.warning(
@@ -331,7 +346,8 @@ class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
                 raw_value = self.scraper.scrape(
                     selector, self._name, context=self.coordinator.scrape_context
                 )
-                total += int(raw_value.strip())
+                # See NumericGatewayFieldSensor._update_sensor for why str() first.
+                total += int(str(raw_value).strip())
         except Exception as exception:  # noqa: BLE001
             self.coordinator.request_reauth()
             self._scrape_error = True
