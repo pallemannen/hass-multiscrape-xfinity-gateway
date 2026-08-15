@@ -27,16 +27,13 @@ No YAML editing or manually edited config files needed - everything is set up th
 ## What you get
 
 **Sensors**
-- Connection Status, Current Time, System Uptime
-- IP Address, External Default Gateway
-- IPv6 Address, External IPv6 Default Gateway
-- Primary/Secondary DNS, Primary/Secondary IPv6 DNS
-- WiFi information and number of clients
-- Serial Number
-- **Last Reboot** (timestamp, calculated from System Uptime)
+- Connection status, current time, system uptime, last reboot
+- MAC addresses, IP and IPv6 addresses, external default gateways, DNS servers, DHCP status
+- LAN connections, WiFi information and number of clients
+- Manufacturer, model, version, serial number
 
 **Binary sensor**
-- **Connectivity** (shows as a connectivity/online sensor, based on Connection Status)
+- Connectivity, bridge mode, LAN connections, WiFi bands enabled
 
 All of these are created automatically when you set up the integration - nothing extra to configure.
 
