@@ -72,6 +72,34 @@ def build_connection_status_conf(conf: ConfigType, scan_interval: timedelta) -> 
     }
 
 
+def build_lan_conf(conf: ConfigType, scan_interval: timedelta) -> ConfigType:
+    """Build a minimal multiscrape-shaped conf for fetching lan.jst.
+
+    Same reasoning as build_connection_status_conf: fetched through the
+    already-authenticated shared HttpSession, no form_submit needed.
+    """
+    host = conf[CONF_HOST]
+    return {
+        CONF_RESOURCE: f"http://{host}/lan.jst",
+        CONF_SCAN_INTERVAL: scan_interval,
+        CONF_PARSER: DEFAULT_PARSER,
+    }
+
+
+def build_wifi_conf(conf: ConfigType, scan_interval: timedelta) -> ConfigType:
+    """Build a minimal multiscrape-shaped conf for fetching wifi.jst.
+
+    Same reasoning as build_connection_status_conf: fetched through the
+    already-authenticated shared HttpSession, no form_submit needed.
+    """
+    host = conf[CONF_HOST]
+    return {
+        CONF_RESOURCE: f"http://{host}/wifi.jst",
+        CONF_SCAN_INTERVAL: scan_interval,
+        CONF_PARSER: DEFAULT_PARSER,
+    }
+
+
 def build_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
     """Build a multiscrape Selector for a single CSS-selected, stripped-text field."""
     return Selector(

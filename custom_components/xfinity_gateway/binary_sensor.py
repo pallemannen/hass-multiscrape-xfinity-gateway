@@ -28,7 +28,12 @@ from .const import (
     ICON_INACTIVE,
     ICON_WIFI_OFF,
     ICON_WIFI_ON,
+    LAN_1_CONNECTION_STATUS_FIELD_KEY,
+    LAN_2_CONNECTION_STATUS_FIELD_KEY,
+    LAN_3_CONNECTION_STATUS_FIELD_KEY,
+    LAN_4_CONNECTION_STATUS_FIELD_KEY,
     LAN_DHCP_SERVER_STATUS_FIELD_KEY,
+    LAN_FIELDS,
     WIFI_24GHZ_STATUS_FIELD_KEY,
     WIFI_5GHZ_STATUS_FIELD_KEY,
     WIFI_6GHZ_STATUS_FIELD_KEY,
@@ -50,6 +55,8 @@ async def async_setup_entry(
     scraper = data["scraper"]
     coordinator_cs = data["coordinator_connection_status"]
     scraper_cs = data["scraper_connection_status"]
+    coordinator_lan = data["coordinator_lan"]
+    scraper_lan = data["scraper_lan"]
 
     dhcp_client_ipv4_field = next(f for f in FIELDS if f.key == DHCP_CLIENT_IPV4_FIELD_KEY)
     dhcp_client_ipv6_field = next(f for f in FIELDS if f.key == DHCP_CLIENT_IPV6_FIELD_KEY)
@@ -92,6 +99,7 @@ async def async_setup_entry(
             ),
             GatewayBridgeModeSensor(hass, coordinator, scraper),
             GatewayWifiSensor(hass, coordinator_cs, scraper_cs),
+            GatewayLanConnectionSensor(hass, coordinator_lan, scraper_lan),
         ]
     )
 
@@ -272,3 +280,58 @@ class GatewayWifiSensor(MultiscrapeEntity, BinarySensorEntity):
             return
 
         self._attr_icon = ICON_WIFI_ON if self._attr_is_on else ICON_WIFI_OFF
+
+
+class GatewayLanConnectionSensor(MultiscrapeEntity, BinarySensorEntity):
+    """Derived connectivity sensor: on when any of the 4 LAN Ethernet ports is 'Active'.
+
+    Mirrors GatewayConnectivitySensor's dynamic ICON_ACTIVE/ICON_INACTIVE icon
+    swap for consistency, since this is also device_class=connectivity.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            hass, coordinator, scraper, "LAN Connection", None, False, None, None, {}
+        )
+
+        self._attr_unique_id = "xfinity_gateway_lan_connection"
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+        )
+        self._attr_icon = ICON_INACTIVE
+        port_keys = (
+            LAN_1_CONNECTION_STATUS_FIELD_KEY,
+            LAN_2_CONNECTION_STATUS_FIELD_KEY,
+            LAN_3_CONNECTION_STATUS_FIELD_KEY,
+            LAN_4_CONNECTION_STATUS_FIELD_KEY,
+        )
+        self._selectors = [
+            build_selector(hass, field.name, field.select)
+            for key in port_keys
+            for field in LAN_FIELDS
+            if field.key == key
+        ]
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data."""
+        try:
+            any_active = False
+            for selector in self._selectors:
+                value = self.scraper.scrape(
+                    selector, self._name, context=self.coordinator.scrape_context
+                )
+                if value and value.strip().lower() == "active":
+                    any_active = True
+            self._attr_is_on = any_active
+        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        self._attr_icon = ICON_ACTIVE if self._attr_is_on else ICON_INACTIVE

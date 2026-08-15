@@ -33,13 +33,25 @@ from .const import (
     FIELDS,
     ICON_ACTIVE,
     ICON_INACTIVE,
+    ICON_LAN_SPEED,
+    ICON_MAC_ADDRESS,
+    LAN_1_SPEED_FIELD_KEY,
+    LAN_2_SPEED_FIELD_KEY,
+    LAN_3_SPEED_FIELD_KEY,
+    LAN_4_SPEED_FIELD_KEY,
+    LAN_FIELDS,
+    LAN_MAC_ADDRESS_FIELD_KEY,
     LAST_REBOOT_ICON,
     STATIC_ICONS,
     SYSTEM_UPTIME_FIELD_KEY,
     WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY,
+    WIFI_24GHZ_MAC_ADDRESS_FIELD_KEY,
     WIFI_5GHZ_CLIENT_COUNT_FIELD_KEY,
+    WIFI_5GHZ_MAC_ADDRESS_FIELD_KEY,
     WIFI_6GHZ_CLIENT_COUNT_FIELD_KEY,
+    WIFI_6GHZ_MAC_ADDRESS_FIELD_KEY,
     WIFI_CLIENT_COUNT_ICON,
+    WIFI_MAC_FIELDS,
     ConnectionStatusField,
     GatewayField,
 )
@@ -89,6 +101,10 @@ async def async_setup_entry(
     scraper = data["scraper"]
     coordinator_cs = data["coordinator_connection_status"]
     scraper_cs = data["scraper_connection_status"]
+    coordinator_lan = data["coordinator_lan"]
+    scraper_lan = data["scraper_lan"]
+    coordinator_wifi = data["coordinator_wifi"]
+    scraper_wifi = data["scraper_wifi"]
 
     entities: list[SensorEntity] = [
         GatewayFieldSensor(hass, coordinator, scraper, field) for field in FIELDS
@@ -100,6 +116,18 @@ async def async_setup_entry(
         entities.append(entity_cls(hass, coordinator_cs, scraper_cs, field))
 
     entities.append(WifiClientCountSensor(hass, coordinator_cs, scraper_cs))
+
+    entities.extend(
+        GatewayFieldSensor(hass, coordinator_lan, scraper_lan, field) for field in LAN_FIELDS
+    )
+    entities.extend(
+        GatewayFieldSensor(hass, coordinator_wifi, scraper_wifi, field)
+        for field in WIFI_MAC_FIELDS
+    )
+    entities.append(LanSpeedSensor(hass, coordinator_lan, scraper_lan))
+    entities.append(
+        MacAddressSensor(hass, coordinator_lan, scraper_lan, coordinator_wifi, scraper_wifi)
+    )
 
     async_add_entities(entities)
 
@@ -313,3 +341,141 @@ class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
             return
 
         self._attr_native_value = total
+
+
+_LEADING_INT_RE = re.compile(r"\d+")
+
+
+class LanSpeedSensor(MultiscrapeEntity, SensorEntity):
+    """Derived sensor: the highest of the four LAN ports' Connection Speed values.
+
+    Re-scrapes all four speed fields itself each cycle (same pattern as
+    WifiClientCountSensor/LastRebootSensor). Kept as the winning port's raw
+    string (e.g. "1000 Mbps"), not a bare number, matching this integration's
+    existing string-sensor style - only used numerically to pick the winner.
+    """
+
+    _attr_device_class = None
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, coordinator, scraper, "LAN Speed", None, False, None, None, {})
+
+        self._attr_icon = ICON_LAN_SPEED
+        self._attr_unique_id = "xfinity_gateway_lan_speed"
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+        )
+        speed_keys = (
+            LAN_1_SPEED_FIELD_KEY,
+            LAN_2_SPEED_FIELD_KEY,
+            LAN_3_SPEED_FIELD_KEY,
+            LAN_4_SPEED_FIELD_KEY,
+        )
+        self._selectors = [
+            build_selector(hass, field.name, field.select)
+            for key in speed_keys
+            for field in LAN_FIELDS
+            if field.key == key
+        ]
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data."""
+        try:
+            raw_values = [
+                self.scraper.scrape(
+                    selector, self._name, context=self.coordinator.scrape_context
+                )
+                for selector in self._selectors
+            ]
+        except Exception as exception:  # noqa: BLE001
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to compute %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        best_raw = raw_values[0]
+        best_speed = -1
+        for raw in raw_values:
+            match = _LEADING_INT_RE.search(raw or "")
+            speed = int(match.group()) if match else 0
+            if speed > best_speed:
+                best_speed = speed
+                best_raw = raw
+
+        self._attr_native_value = best_raw
+
+
+class MacAddressSensor(MultiscrapeEntity, SensorEntity):
+    """Derived sensor: the gateway's "effective" MAC address.
+
+    Priority order: LAN, then Wi-Fi 2.4/5/6 GHz - the first one that scrapes
+    to a non-empty value wins. Reads from two different pages/scrapers (LAN
+    and Wi-Fi), so it subscribes to the LAN coordinator for update timing
+    (both run on the same configured scan_interval) but also holds a direct
+    reference to the Wi-Fi scraper to read from it too.
+    """
+
+    _attr_device_class = None
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator_lan,
+        scraper_lan,
+        coordinator_wifi,
+        scraper_wifi,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            hass, coordinator_lan, scraper_lan, "MAC Address", None, False, None, None, {}
+        )
+
+        self._attr_icon = ICON_MAC_ADDRESS
+        self._attr_unique_id = "xfinity_gateway_mac_address"
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+        )
+        self._scraper_wifi = scraper_wifi
+
+        lan_mac_field = next(f for f in LAN_FIELDS if f.key == LAN_MAC_ADDRESS_FIELD_KEY)
+        self._lan_selector = build_selector(hass, lan_mac_field.name, lan_mac_field.select)
+
+        wifi_keys = (
+            WIFI_24GHZ_MAC_ADDRESS_FIELD_KEY,
+            WIFI_5GHZ_MAC_ADDRESS_FIELD_KEY,
+            WIFI_6GHZ_MAC_ADDRESS_FIELD_KEY,
+        )
+        self._wifi_selectors = [
+            build_selector(hass, field.name, field.select)
+            for key in wifi_keys
+            for field in WIFI_MAC_FIELDS
+            if field.key == key
+        ]
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data."""
+        try:
+            candidates = [
+                self.scraper.scrape(
+                    self._lan_selector, self._name, context=self.coordinator.scrape_context
+                )
+            ]
+            candidates.extend(
+                self._scraper_wifi.scrape(selector, self._name)
+                for selector in self._wifi_selectors
+            )
+        except Exception as exception:  # noqa: BLE001
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to compute %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        for candidate in candidates:
+            if candidate and candidate.strip():
+                self._attr_native_value = candidate
+                return

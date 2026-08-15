@@ -208,6 +208,81 @@ CONNECTION_STATUS_FIELDS: tuple[ConnectionStatusField, ...] = (
     ),
 )
 
+# lan.jst: four identical <div class="module forms block"> port blocks, no
+# unique IDs at all (will break if the gateway's firmware ever reorders
+# them - accepted tradeoff, there's no more stable marker available).
+# Verified via structural parse: siblings 2/3/4/5 at their nesting level.
+LAN_FIELDS: tuple[ConnectionStatusField, ...] = (
+    ConnectionStatusField(
+        "lan_1_connection_status",
+        "LAN 1 Connection Status",
+        ".module.forms.block:nth-of-type(2) .form-row:nth-of-type(1) span.value",
+    ),
+    ConnectionStatusField(
+        "lan_2_connection_status",
+        "LAN 2 Connection Status",
+        ".module.forms.block:nth-of-type(3) .form-row:nth-of-type(1) span.value",
+    ),
+    ConnectionStatusField(
+        "lan_3_connection_status",
+        "LAN 3 Connection Status",
+        ".module.forms.block:nth-of-type(4) .form-row:nth-of-type(1) span.value",
+    ),
+    ConnectionStatusField(
+        "lan_4_connection_status",
+        "LAN 4 Connection Status",
+        ".module.forms.block:nth-of-type(5) .form-row:nth-of-type(1) span.value",
+    ),
+    ConnectionStatusField(
+        "lan_1_speed",
+        "LAN 1 Speed",
+        ".module.forms.block:nth-of-type(2) .form-row:nth-of-type(3) span.value",
+    ),
+    ConnectionStatusField(
+        "lan_2_speed",
+        "LAN 2 Speed",
+        ".module.forms.block:nth-of-type(3) .form-row:nth-of-type(3) span.value",
+    ),
+    ConnectionStatusField(
+        "lan_3_speed",
+        "LAN 3 Speed",
+        ".module.forms.block:nth-of-type(4) .form-row:nth-of-type(3) span.value",
+    ),
+    ConnectionStatusField(
+        "lan_4_speed",
+        "LAN 4 Speed",
+        ".module.forms.block:nth-of-type(5) .form-row:nth-of-type(3) span.value",
+    ),
+    # Same MAC on all four ports on this gateway - just grab port 1's.
+    ConnectionStatusField(
+        "lan_mac_address",
+        "LAN MAC Address",
+        ".module.forms.block:nth-of-type(2) .form-row:nth-of-type(2) span.value",
+    ),
+)
+
+# wifi.jst: three identical <div class="module forms block"> band blocks, same
+# no-unique-ID caveat as LAN_FIELDS above. The MAC address row is present and
+# populated even when a band's link status is "Inactive", so no conditional
+# skip-logic is needed - always scrape directly. Verified siblings 2/3/4.
+WIFI_MAC_FIELDS: tuple[ConnectionStatusField, ...] = (
+    ConnectionStatusField(
+        "wifi_24ghz_mac_address",
+        "Wi-Fi 2.4 GHz MAC Address",
+        ".module.forms.block:nth-of-type(2) .form-row:nth-of-type(2) span.value",
+    ),
+    ConnectionStatusField(
+        "wifi_5ghz_mac_address",
+        "Wi-Fi 5 GHz MAC Address",
+        ".module.forms.block:nth-of-type(3) .form-row:nth-of-type(2) span.value",
+    ),
+    ConnectionStatusField(
+        "wifi_6ghz_mac_address",
+        "Wi-Fi 6 GHz MAC Address",
+        ".module.forms.block:nth-of-type(4) .form-row:nth-of-type(2) span.value",
+    ),
+)
+
 CONNECTION_STATUS_FIELD_KEY = "connection_status"
 CURRENT_TIME_FIELD_KEY = "current_time"
 SYSTEM_UPTIME_FIELD_KEY = "system_uptime"
@@ -223,6 +298,19 @@ WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_24ghz_client_count"
 WIFI_5GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_5ghz_client_count"
 WIFI_6GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_6ghz_client_count"
 
+LAN_1_CONNECTION_STATUS_FIELD_KEY = "lan_1_connection_status"
+LAN_2_CONNECTION_STATUS_FIELD_KEY = "lan_2_connection_status"
+LAN_3_CONNECTION_STATUS_FIELD_KEY = "lan_3_connection_status"
+LAN_4_CONNECTION_STATUS_FIELD_KEY = "lan_4_connection_status"
+LAN_1_SPEED_FIELD_KEY = "lan_1_speed"
+LAN_2_SPEED_FIELD_KEY = "lan_2_speed"
+LAN_3_SPEED_FIELD_KEY = "lan_3_speed"
+LAN_4_SPEED_FIELD_KEY = "lan_4_speed"
+LAN_MAC_ADDRESS_FIELD_KEY = "lan_mac_address"
+WIFI_24GHZ_MAC_ADDRESS_FIELD_KEY = "wifi_24ghz_mac_address"
+WIFI_5GHZ_MAC_ADDRESS_FIELD_KEY = "wifi_5ghz_mac_address"
+WIFI_6GHZ_MAC_ADDRESS_FIELD_KEY = "wifi_6ghz_mac_address"
+
 # Format the gateway reports its own "Current Time" field in, e.g. "2026-08-14 09:12:03".
 CURRENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -237,6 +325,8 @@ LAST_REBOOT_ICON = "mdi:clock-time-four-outline"
 ICON_DHCP = "mdi:database-export-outline"
 ICON_BRIDGE = "mdi:bridge"
 WIFI_CLIENT_COUNT_ICON = "mdi:wifi-settings"
+ICON_LAN_SPEED = "mdi:speedometer"
+ICON_MAC_ADDRESS = "mdi:barcode"
 
 STATIC_ICONS: dict[str, str] = {
     "current_time": "mdi:clock-time-four-outline",
@@ -267,4 +357,16 @@ STATIC_ICONS: dict[str, str] = {
     "wifi_5ghz_client_count": "mdi:wifi-settings",
     "wifi_6ghz_status": "mdi:wifi",
     "wifi_6ghz_client_count": "mdi:wifi-settings",
+    "lan_1_connection_status": "mdi:lan",
+    "lan_2_connection_status": "mdi:lan",
+    "lan_3_connection_status": "mdi:lan",
+    "lan_4_connection_status": "mdi:lan",
+    "lan_1_speed": ICON_LAN_SPEED,
+    "lan_2_speed": ICON_LAN_SPEED,
+    "lan_3_speed": ICON_LAN_SPEED,
+    "lan_4_speed": ICON_LAN_SPEED,
+    "lan_mac_address": ICON_MAC_ADDRESS,
+    "wifi_24ghz_mac_address": ICON_MAC_ADDRESS,
+    "wifi_5ghz_mac_address": ICON_MAC_ADDRESS,
+    "wifi_6ghz_mac_address": ICON_MAC_ADDRESS,
 }
