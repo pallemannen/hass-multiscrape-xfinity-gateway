@@ -28,5 +28,21 @@
       "multiscrape_not_installed": "Integrationen multiscrape måste installeras först (via HACS: danieldotnl/ha-multiscrape). Xfinity Gateway använder den internt och fungerar inte utan den.",
       "reconfigure_successful": "Xfinity Gateway-inställningarna har uppdaterats."
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "enabled_disabled": {
+        "state": {
+          "on": "Aktiverad",
+          "off": "Inaktiverad"
+        }
+      },
+      "bridge_mode": {
+        "state": {
+          "on": "I bryggläge",
+          "off": "Inte i bryggläge"
+        }
+      }
+    }
   }
 }

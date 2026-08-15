@@ -28,5 +28,21 @@
       "multiscrape_not_installed": "The multiscrape integration must be installed first (via HACS: danieldotnl/ha-multiscrape). Xfinity Gateway uses it internally and won't work without it.",
       "reconfigure_successful": "Xfinity Gateway settings updated."
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "enabled_disabled": {
+        "state": {
+          "on": "Enabled",
+          "off": "Disabled"
+        }
+      },
+      "bridge_mode": {
+        "state": {
+          "on": "In Bridge Mode",
+          "off": "Not in Bridge Mode"
+        }
+      }
+    }
   }
 }

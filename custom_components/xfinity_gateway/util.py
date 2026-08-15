@@ -55,6 +55,51 @@ def build_scraper_conf(conf: ConfigType) -> ConfigType:
     }
 
 
+def build_connection_status_conf(conf: ConfigType, scan_interval: timedelta) -> ConfigType:
+    """Build a minimal multiscrape-shaped conf for fetching connection_status.jst.
+
+    No form_submit block needed here - this page is fetched through the same
+    HttpSession (and thus the same cookies/login) already established for
+    network_setup.jst, so authentication is already handled; this only needs
+    enough config for create_scraper/create_content_request_manager/
+    create_multiscrape_coordinator to know what URL and parser to use.
+    """
+    host = conf[CONF_HOST]
+    return {
+        CONF_RESOURCE: f"http://{host}/connection_status.jst",
+        CONF_SCAN_INTERVAL: scan_interval,
+        CONF_PARSER: DEFAULT_PARSER,
+    }
+
+
+def build_lan_conf(conf: ConfigType, scan_interval: timedelta) -> ConfigType:
+    """Build a minimal multiscrape-shaped conf for fetching lan.jst.
+
+    Same reasoning as build_connection_status_conf: fetched through the
+    already-authenticated shared HttpSession, no form_submit needed.
+    """
+    host = conf[CONF_HOST]
+    return {
+        CONF_RESOURCE: f"http://{host}/lan.jst",
+        CONF_SCAN_INTERVAL: scan_interval,
+        CONF_PARSER: DEFAULT_PARSER,
+    }
+
+
+def build_wifi_conf(conf: ConfigType, scan_interval: timedelta) -> ConfigType:
+    """Build a minimal multiscrape-shaped conf for fetching wifi.jst.
+
+    Same reasoning as build_connection_status_conf: fetched through the
+    already-authenticated shared HttpSession, no form_submit needed.
+    """
+    host = conf[CONF_HOST]
+    return {
+        CONF_RESOURCE: f"http://{host}/wifi.jst",
+        CONF_SCAN_INTERVAL: scan_interval,
+        CONF_PARSER: DEFAULT_PARSER,
+    }
+
+
 def build_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
     """Build a multiscrape Selector for a single CSS-selected, stripped-text field."""
     return Selector(
