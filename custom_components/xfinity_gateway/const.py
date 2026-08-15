@@ -351,7 +351,7 @@ STATIC_ICONS: dict[str, str] = {
     "model_number": "mdi:tag-outline",
     "model": "mdi:tag-outline",
     "software_version": "mdi:source-branch",
-    "bridge_message": "mdi:bridge-mode",
+    "bridge_message": "mdi:bridge",
     "lan_ip_address": "mdi:ip-network-outline",
     "lan_netmask": "mdi:lan",
     "lan_dhcp_server_status": ICON_DHCP,
