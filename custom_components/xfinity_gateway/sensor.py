@@ -104,7 +104,9 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
         )
         self._field_key = field.key
-        self._attr_icon = STATIC_ICONS.get(field.key)
+        self._attr_icon = STATIC_ICONS.get(
+            field.key, ICON_INACTIVE if field.key == CONNECTION_STATUS_FIELD_KEY else None
+        )
         self._selector = build_selector(hass, field.name, field.select)
 
     def _update_sensor(self) -> None:
