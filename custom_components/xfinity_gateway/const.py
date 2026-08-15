@@ -84,20 +84,159 @@ FIELDS: tuple[GatewayField, ...] = (
         "Serial Number",
         ".module.forms.dev_label .form-row:nth-of-type(3) span.value",
     ),
+    GatewayField(
+        "dhcp_client_ipv4",
+        "DHCP Client (IPv4)",
+        ".module.forms .form-row:nth-of-type(14) span.value",
+    ),
+    GatewayField(
+        "dhcp_client_ipv6",
+        "DHCP Client (IPv6)",
+        ".module.forms .form-row:nth-of-type(15) span.value",
+    ),
+    # The "Device Information" block also just uses the plain "module forms"
+    # class (reused by many blocks on this page, unlike Serial Number's
+    # dev_label-marked block), so it can't be targeted by class alone. It's
+    # verified (via a structural parse of a real captured page, since bs4
+    # isn't installable in the dev environment) to be the 12th <div> at its
+    # nesting level, so :nth-of-type(12) - not soupsieve extension syntax -
+    # scopes to it unambiguously.
+    GatewayField(
+        "manufacturer",
+        "Vendor",
+        ".module.forms:nth-of-type(12) .form-row:nth-of-type(2) span.value",
+    ),
+    GatewayField(
+        "model_number",
+        "Model",
+        ".module.forms:nth-of-type(12) .form-row:nth-of-type(4) span.value",
+    ),
+    GatewayField(
+        "model",
+        "Product Type",
+        ".module.forms:nth-of-type(12) .form-row:nth-of-type(5) span.value",
+    ),
+    # "Download Version" on the real page - the closest thing to a firmware/
+    # software version string; there's no field literally labeled that.
+    GatewayField(
+        "software_version",
+        "Software Version",
+        ".module.forms:nth-of-type(12) .form-row:nth-of-type(7) span.value",
+    ),
+    # Not a .form-row/span.value pair like the rest - a standalone paragraph.
+    GatewayField(
+        "bridge_message",
+        "Bridge Message",
+        "#bridmess",
+    ),
+)
+
+
+@dataclass(frozen=True)
+class ConnectionStatusField:
+    """A single scraped field on the gateway's connection_status.jst page (LAN/Wi-Fi)."""
+
+    key: str
+    name: str
+    select: str
+    numeric: bool = False
+
+
+# connection_status.jst reuses id="noclients" four times (LAN + all three Wi-Fi
+# bands) and the same plain module/private-wifi classes across all three Wi-Fi
+# band blocks - both invalid but real. The LAN one is disambiguated for free
+# since BeautifulSoup's select_one() (like any CSS engine) resolves a bare
+# #id selector to the first matching element in document order, and the LAN
+# block happens to be first on the page. The Wi-Fi bands need :nth-of-type
+# position scoping instead (verified the same way as Device Information
+# above): the three .private-wifi blocks are siblings 1/2/3 under their own
+# parent, and nothing else there shares that class.
+CONNECTION_STATUS_FIELDS: tuple[ConnectionStatusField, ...] = (
+    ConnectionStatusField(
+        "lan_ip_address",
+        "IP Address",
+        "#ipaddloc + span.value",
+    ),
+    ConnectionStatusField(
+        "lan_netmask",
+        "Netmask",
+        "#subnetloc + span.value",
+    ),
+    ConnectionStatusField(
+        "lan_dhcp_server_status",
+        "DHCP Server Status",
+        "#dhcpserverloc + span.value",
+    ),
+    ConnectionStatusField(
+        "lan_client_count",
+        "Number of LAN Clients",
+        "#noclients + span.value",
+        numeric=True,
+    ),
+    ConnectionStatusField(
+        "wifi_24ghz_status",
+        "Wi-Fi 2.4 GHz Status",
+        ".private-wifi:nth-of-type(1) .form-row:nth-of-type(1) span.value",
+    ),
+    ConnectionStatusField(
+        "wifi_24ghz_client_count",
+        "Number of WiFi 2.4 GHz Clients",
+        ".private-wifi:nth-of-type(1) .form-row:nth-of-type(4) span.value",
+        numeric=True,
+    ),
+    ConnectionStatusField(
+        "wifi_5ghz_status",
+        "Wi-Fi 5 GHz Status",
+        ".private-wifi:nth-of-type(2) .form-row:nth-of-type(1) span.value",
+    ),
+    ConnectionStatusField(
+        "wifi_5ghz_client_count",
+        "Number of WiFi 5 GHz Clients",
+        ".private-wifi:nth-of-type(2) .form-row:nth-of-type(4) span.value",
+        numeric=True,
+    ),
+    ConnectionStatusField(
+        "wifi_6ghz_status",
+        "Wi-Fi 6 GHz Status",
+        ".private-wifi:nth-of-type(3) .form-row:nth-of-type(1) span.value",
+    ),
+    ConnectionStatusField(
+        "wifi_6ghz_client_count",
+        "Number of WiFi 6 GHz Clients",
+        ".private-wifi:nth-of-type(3) .form-row:nth-of-type(4) span.value",
+        numeric=True,
+    ),
 )
 
 CONNECTION_STATUS_FIELD_KEY = "connection_status"
 CURRENT_TIME_FIELD_KEY = "current_time"
 SYSTEM_UPTIME_FIELD_KEY = "system_uptime"
+DHCP_CLIENT_IPV4_FIELD_KEY = "dhcp_client_ipv4"
+DHCP_CLIENT_IPV6_FIELD_KEY = "dhcp_client_ipv6"
+BRIDGE_MESSAGE_FIELD_KEY = "bridge_message"
+
+LAN_DHCP_SERVER_STATUS_FIELD_KEY = "lan_dhcp_server_status"
+WIFI_24GHZ_STATUS_FIELD_KEY = "wifi_24ghz_status"
+WIFI_5GHZ_STATUS_FIELD_KEY = "wifi_5ghz_status"
+WIFI_6GHZ_STATUS_FIELD_KEY = "wifi_6ghz_status"
+WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_24ghz_client_count"
+WIFI_5GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_5ghz_client_count"
+WIFI_6GHZ_CLIENT_COUNT_FIELD_KEY = "wifi_6ghz_client_count"
 
 # Format the gateway reports its own "Current Time" field in, e.g. "2026-08-14 09:12:03".
 CURRENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 # Connection Status and Connectivity get a state-dependent icon instead (see sensor.py /
-# binary_sensor.py), so connection_status is deliberately absent from this map.
+# binary_sensor.py), so connection_status is deliberately absent from this map. Same for
+# the Wi-Fi binary sensor, which switches between ICON_WIFI_ON/ICON_WIFI_OFF.
 ICON_ACTIVE = "mdi:check-network-outline"
 ICON_INACTIVE = "mdi:close-network-outline"
+ICON_WIFI_ON = "mdi:wifi"
+ICON_WIFI_OFF = "mdi:wifi-off"
 LAST_REBOOT_ICON = "mdi:clock-time-four-outline"
+ICON_DHCP = "mdi:database-export-outline"
+ICON_BRIDGE = "mdi:bridge"
+WIFI_CLIENT_COUNT_ICON = "mdi:wifi-settings"
 
 STATIC_ICONS: dict[str, str] = {
     "current_time": "mdi:clock-time-four-outline",
@@ -111,4 +250,21 @@ STATIC_ICONS: dict[str, str] = {
     "primary_ipv6_dns": "mdi:dns-outline",
     "secondary_ipv6_dns": "mdi:dns-outline",
     "serial_number": "mdi:numeric",
+    "dhcp_client_ipv4": ICON_DHCP,
+    "dhcp_client_ipv6": ICON_DHCP,
+    "manufacturer": "mdi:factory",
+    "model_number": "mdi:tag-outline",
+    "model": "mdi:tag-outline",
+    "software_version": "mdi:source-branch",
+    "bridge_message": "mdi:bridge-mode",
+    "lan_ip_address": "mdi:ip-network-outline",
+    "lan_netmask": "mdi:lan",
+    "lan_dhcp_server_status": ICON_DHCP,
+    "lan_client_count": "mdi:lan",
+    "wifi_24ghz_status": "mdi:wifi",
+    "wifi_24ghz_client_count": "mdi:wifi-settings",
+    "wifi_5ghz_status": "mdi:wifi",
+    "wifi_5ghz_client_count": "mdi:wifi-settings",
+    "wifi_6ghz_status": "mdi:wifi",
+    "wifi_6ghz_client_count": "mdi:wifi-settings",
 }

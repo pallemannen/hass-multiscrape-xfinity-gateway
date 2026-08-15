@@ -13,13 +13,22 @@ multiscrape uses on itself (see multiscrape/__init__.py's
 _async_process_config), and then forwards setup to the sensor/binary_sensor
 platforms via the config entry, the same way any other config-flow
 integration does.
+
+The gateway has two separate status pages we scrape: network_setup.jst (the
+original set of fields) and connection_status.jst (LAN/Wi-Fi fields). Rather
+than modify multiscrape's own coordinator (which only ever fetches a single
+resource per cycle), this builds a *second*, independent scraper/coordinator
+pair for connection_status.jst - sharing the same authenticated HttpSession
+(and thus the same login/cookies) as the first, so this doesn't double the
+login load on the gateway. Two independent multiscrape coordinators, one
+shared session.
 """
 from __future__ import annotations
 
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
+from homeassistant.const import CONF_SCAN_INTERVAL, EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
 
 from custom_components.multiscrape.coordinator import (
@@ -31,12 +40,13 @@ from custom_components.multiscrape.http_session import create_http_session
 from custom_components.multiscrape.scraper import create_scraper
 
 from .const import DOMAIN
-from .util import build_scraper_conf
+from .util import build_connection_status_conf, build_scraper_conf
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 SCRAPER_CONFIG_NAME = "xfinity_gateway"
+CONNECTION_STATUS_CONFIG_NAME = "xfinity_gateway_connection_status"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -62,6 +72,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # config entries.").
     await coordinator.async_config_entry_first_refresh()
 
+    # Second page (connection_status.jst), same session - see module docstring.
+    connection_status_conf = build_connection_status_conf(
+        conf, scraper_conf[CONF_SCAN_INTERVAL]
+    )
+    scraper_connection_status = create_scraper(
+        CONNECTION_STATUS_CONFIG_NAME, connection_status_conf, hass, file_manager
+    )
+    request_manager_connection_status = create_content_request_manager(
+        CONNECTION_STATUS_CONFIG_NAME, connection_status_conf, hass, session
+    )
+    coordinator_connection_status = create_multiscrape_coordinator(
+        CONNECTION_STATUS_CONFIG_NAME,
+        connection_status_conf,
+        hass,
+        request_manager_connection_status,
+        file_manager,
+        scraper_connection_status,
+    )
+    await coordinator_connection_status.async_config_entry_first_refresh()
+
     async def _shutdown_session(_event, _session=session):
         await _session.async_close()
 
@@ -72,6 +102,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator,
         "scraper": scraper,
+        "coordinator_connection_status": coordinator_connection_status,
+        "scraper_connection_status": scraper_connection_status,
         "session": session,
     }
 

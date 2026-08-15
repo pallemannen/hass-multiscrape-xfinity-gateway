@@ -11,7 +11,11 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
@@ -22,6 +26,7 @@ from custom_components.multiscrape.entity import MultiscrapeEntity
 
 from .const import (
     CONNECTION_STATUS_FIELD_KEY,
+    CONNECTION_STATUS_FIELDS,
     CURRENT_TIME_FIELD_KEY,
     CURRENT_TIME_FORMAT,
     DOMAIN,
@@ -31,6 +36,11 @@ from .const import (
     LAST_REBOOT_ICON,
     STATIC_ICONS,
     SYSTEM_UPTIME_FIELD_KEY,
+    WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY,
+    WIFI_5GHZ_CLIENT_COUNT_FIELD_KEY,
+    WIFI_6GHZ_CLIENT_COUNT_FIELD_KEY,
+    WIFI_CLIENT_COUNT_ICON,
+    ConnectionStatusField,
     GatewayField,
 )
 from .util import build_selector
@@ -77,24 +87,36 @@ async def async_setup_entry(
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
     scraper = data["scraper"]
+    coordinator_cs = data["coordinator_connection_status"]
+    scraper_cs = data["scraper_connection_status"]
 
     entities: list[SensorEntity] = [
         GatewayFieldSensor(hass, coordinator, scraper, field) for field in FIELDS
     ]
     entities.append(LastRebootSensor(hass, coordinator, scraper))
 
+    for field in CONNECTION_STATUS_FIELDS:
+        entity_cls = NumericGatewayFieldSensor if field.numeric else GatewayFieldSensor
+        entities.append(entity_cls(hass, coordinator_cs, scraper_cs, field))
+
+    entities.append(WifiClientCountSensor(hass, coordinator_cs, scraper_cs))
+
     async_add_entities(entities)
 
 
 class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
-    """A sensor reading a single field off the gateway status page."""
+    """A sensor reading a single field off a gateway status page.
+
+    Works for either GatewayField (network_setup.jst) or ConnectionStatusField
+    (connection_status.jst) - both just carry key/name/select.
+    """
 
     def __init__(
         self,
         hass: HomeAssistant,
         coordinator,
         scraper,
-        field: GatewayField,
+        field: GatewayField | ConnectionStatusField,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, field.name, None, False, None, None, {})
@@ -126,6 +148,43 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
         self._attr_native_value = value
         if self._field_key == CONNECTION_STATUS_FIELD_KEY:
             self._attr_icon = ICON_ACTIVE if value == "Active" else ICON_INACTIVE
+
+
+class NumericGatewayFieldSensor(GatewayFieldSensor):
+    """A GatewayFieldSensor whose value is a plain integer count (e.g. client counts).
+
+    No built-in HA sensor device_class fits a plain count like this - left
+    unset, with state_class=measurement so it still gets history/graphing.
+    """
+
+    _attr_device_class = None
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data, parsed as an int."""
+        try:
+            raw_value = self.scraper.scrape(
+                self._selector, self._name, context=self.coordinator.scrape_context
+            )
+        except Exception as exception:  # noqa: BLE001
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        try:
+            self._attr_native_value = int(raw_value.strip())
+        except (TypeError, ValueError) as exception:
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Could not parse %s as an integer (raw value %r): %s",
+                self.scraper.name,
+                self._name,
+                raw_value,
+                exception,
+            )
 
 
 class LastRebootSensor(MultiscrapeEntity, SensorEntity):
@@ -200,3 +259,57 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
 
         gateway_now = naive_current_time.replace(tzinfo=dt_util.now().tzinfo)
         self._attr_native_value = gateway_now - duration
+
+
+class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
+    """Derived sensor: sum of the three per-band Wi-Fi client counts.
+
+    Re-scrapes all three band selectors itself each cycle, the same way
+    LastRebootSensor recomputes from its own source fields rather than
+    reading other entities' states (fragile/order-dependent).
+    """
+
+    _attr_device_class = None
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            hass, coordinator, scraper, "Number of WiFi Clients", None, False, None, None, {}
+        )
+
+        self._attr_icon = WIFI_CLIENT_COUNT_ICON
+        self._attr_unique_id = "xfinity_gateway_wifi_client_count"
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+        )
+        band_keys = (
+            WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY,
+            WIFI_5GHZ_CLIENT_COUNT_FIELD_KEY,
+            WIFI_6GHZ_CLIENT_COUNT_FIELD_KEY,
+        )
+        self._selectors = [
+            build_selector(hass, band_field.name, band_field.select)
+            for key in band_keys
+            for band_field in CONNECTION_STATUS_FIELDS
+            if band_field.key == key
+        ]
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data."""
+        try:
+            total = 0
+            for selector in self._selectors:
+                raw_value = self.scraper.scrape(
+                    selector, self._name, context=self.coordinator.scrape_context
+                )
+                total += int(raw_value.strip())
+        except Exception as exception:  # noqa: BLE001
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to compute %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        self._attr_native_value = total
