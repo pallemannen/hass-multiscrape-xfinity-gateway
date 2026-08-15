@@ -44,10 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     conf = entry.data
     scraper_conf = build_scraper_conf(conf)
 
-    # log_response=True: temporarily enabled for debugging a scraping failure -
-    # writes each response's parsed content to /config/multiscrape/xfinity_gateway/
-    # for inspection. TODO: turn back off once resolved.
-    file_manager = await create_file_manager(hass, SCRAPER_CONFIG_NAME, True)
+    file_manager = await create_file_manager(hass, SCRAPER_CONFIG_NAME, False)
     session = create_http_session(SCRAPER_CONFIG_NAME, scraper_conf, hass, file_manager)
     scraper = create_scraper(SCRAPER_CONFIG_NAME, scraper_conf, hass, file_manager)
     request_manager = create_content_request_manager(
