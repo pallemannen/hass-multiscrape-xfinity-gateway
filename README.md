@@ -27,7 +27,7 @@ No YAML editing or manually edited config files needed - everything is set up th
 ## What you get
 
 **Sensors**
-- Connection status, current time, system uptime, last reboot
+- Connection status, current time, system uptime, last reboot, mode (bridge/router)
 - MAC addresses, IP and IPv6 addresses, external default gateways, DNS servers, DHCP status
 - LAN connections, WiFi information and number of clients
 - Manufacturer, model, version, serial number

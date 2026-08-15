@@ -25,6 +25,7 @@ from homeassistant.util import dt as dt_util
 from custom_components.multiscrape.entity import MultiscrapeEntity
 
 from .const import (
+    BRIDGE_MESSAGE_FIELD_KEY,
     CONNECTION_STATUS_FIELD_KEY,
     CONNECTION_STATUS_FIELDS,
     CURRENT_TIME_FIELD_KEY,
@@ -32,9 +33,11 @@ from .const import (
     DOMAIN,
     FIELDS,
     ICON_ACTIVE,
+    ICON_BRIDGE,
     ICON_INACTIVE,
     ICON_LAN_SPEED,
     ICON_MAC_ADDRESS,
+    ICON_ROUTER,
     LAN_1_SPEED_FIELD_KEY,
     LAN_2_SPEED_FIELD_KEY,
     LAN_3_SPEED_FIELD_KEY,
@@ -113,6 +116,7 @@ async def async_setup_entry(
         GatewayFieldSensor(hass, coordinator, scraper, field) for field in FIELDS
     ]
     entities.append(LastRebootSensor(hass, coordinator, scraper))
+    entities.append(ModeSensor(hass, coordinator, scraper))
 
     for field in CONNECTION_STATUS_FIELDS:
         entity_cls = NumericGatewayFieldSensor if field.numeric else GatewayFieldSensor
@@ -302,6 +306,46 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
 
         gateway_now = naive_current_time.replace(tzinfo=dt_util.now().tzinfo)
         self._attr_native_value = gateway_now - duration
+
+
+class ModeSensor(MultiscrapeEntity, SensorEntity):
+    """Derived sensor: 'Bridge' or 'Router', from the same Bridge Message field
+    and detection text ("in bridge mode") as GatewayBridgeModeSensor's binary
+    sensor in binary_sensor.py - this just exposes it as a plain-text state
+    (with a matching bridge/router icon) instead of on/off.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["Bridge", "Router"]
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, coordinator, scraper, "Mode", None, False, None, None, {})
+
+        self._attr_unique_id = "xfinity_gateway_mode"
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+        )
+        message_field = next(f for f in FIELDS if f.key == BRIDGE_MESSAGE_FIELD_KEY)
+        self._selector = build_selector(hass, message_field.name, message_field.select)
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data."""
+        try:
+            value = self.scraper.scrape(
+                self._selector, self._name, context=self.coordinator.scrape_context
+            )
+        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        is_bridge = bool(value) and "in bridge mode" in value.strip().lower()
+        self._attr_native_value = "Bridge" if is_bridge else "Router"
+        self._attr_icon = ICON_BRIDGE if is_bridge else ICON_ROUTER
 
 
 class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
