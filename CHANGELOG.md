@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.0] - 2026-08-19
+
+### Added
+
+- All entities now group under a single device (manufacturer/model/serial/software
+  version read from the gateway itself), instead of appearing as ungrouped entities.
+- Config flow now asks for an optional device name (defaults to "Xfinity Gateway"),
+  used both as the config entry title and the device name shown in the UI.
+
+### Fixed
+
+- `sensor.xfinity_gateway_mac_address` always reported `unavailable`. Its Wi-Fi MAC
+  lookups were missing the `context` needed to read the Wi-Fi page's already-fetched
+  content, causing every scrape attempt to fail.
+- `sensor.xfinity_gateway_mode` always reported `unknown`. Its `SensorDeviceClass.ENUM`
+  device class was being silently discarded during setup - the same root cause
+  already fixed for the connectivity binary sensors in 1.3.2, but missed here since
+  this sensor was added in the same release (1.4.0) that introduced that fix.
+
 ## [1.4.0] - 2026-08-18
 
 ### Added

@@ -37,7 +37,7 @@ from bs4 import BeautifulSoup
 from custom_components.multiscrape.coordinator import create_content_request_manager
 from custom_components.multiscrape.http_session import create_http_session
 
-from .const import DEFAULT_HOST, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import CONF_NAME, DEFAULT_HOST, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .util import build_scraper_conf
 
 # Fingerprint of the login page itself (see the module docstring) - present
@@ -50,6 +50,7 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_HOST, default=DEFAULT_HOST): str,
+        vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
@@ -148,7 +149,7 @@ class XfinityGatewayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                 await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(title="Xfinity Gateway", data=user_input)
+                return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
 
         if is_reconfigure and user_input is None:
             user_input = dict(self._get_reconfigure_entry().data)

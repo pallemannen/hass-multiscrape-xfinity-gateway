@@ -17,6 +17,7 @@ This was developed with a gateway running in **bridge mode**. Support for **WiFi
 3. Restart Home Assistant.
 4. Go to **Settings → Devices & Services → Add Integration**, search for "Xfinity Gateway", and fill in:
    - **Gateway IP address** (optional, defaults to `10.0.0.1`)
+   - **Device name** (optional, defaults to `Xfinity Gateway`)
    - **Username** and **Password** for the gateway's admin login
    - **Scan interval** in seconds (optional, defaults to `300`)
 
@@ -35,7 +36,7 @@ No YAML editing or manually edited config files needed - everything is set up th
 **Binary sensor**
 - Connectivity, bridge mode, LAN connections, WiFi bands enabled
 
-All of these are created automatically when you set up the integration - nothing extra to configure.
+All of these are created automatically when you set up the integration - nothing extra to configure. Every entity is grouped under a single device (manufacturer/model/serial/version read from the gateway itself).
 
 ## HACS
 

@@ -57,6 +57,7 @@ async def async_setup_entry(
     scraper_cs = data["scraper_connection_status"]
     coordinator_lan = data["coordinator_lan"]
     scraper_lan = data["scraper_lan"]
+    device_info = data["device_info"]
 
     dhcp_client_ipv4_field = next(f for f in FIELDS if f.key == DHCP_CLIENT_IPV4_FIELD_KEY)
     dhcp_client_ipv6_field = next(f for f in FIELDS if f.key == DHCP_CLIENT_IPV6_FIELD_KEY)
@@ -66,7 +67,7 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            GatewayConnectivitySensor(hass, coordinator, scraper),
+            GatewayConnectivitySensor(hass, coordinator, scraper, device_info),
             GatewayEnabledDisabledSensor(
                 hass,
                 coordinator,
@@ -76,6 +77,7 @@ async def async_setup_entry(
                 ICON_DHCP,
                 dhcp_client_ipv4_field.name,
                 dhcp_client_ipv4_field.select,
+                device_info,
             ),
             GatewayEnabledDisabledSensor(
                 hass,
@@ -86,6 +88,7 @@ async def async_setup_entry(
                 ICON_DHCP,
                 dhcp_client_ipv6_field.name,
                 dhcp_client_ipv6_field.select,
+                device_info,
             ),
             GatewayEnabledDisabledSensor(
                 hass,
@@ -96,10 +99,11 @@ async def async_setup_entry(
                 ICON_DHCP,
                 dhcp_server_field.name,
                 dhcp_server_field.select,
+                device_info,
             ),
-            GatewayBridgeModeSensor(hass, coordinator, scraper),
-            GatewayWifiSensor(hass, coordinator_cs, scraper_cs),
-            GatewayLanConnectionSensor(hass, coordinator_lan, scraper_lan),
+            GatewayBridgeModeSensor(hass, coordinator, scraper, device_info),
+            GatewayWifiSensor(hass, coordinator_cs, scraper_cs, device_info),
+            GatewayLanConnectionSensor(hass, coordinator_lan, scraper_lan, device_info),
         ]
     )
 
@@ -118,7 +122,9 @@ class GatewayConnectivitySensor(MultiscrapeEntity, BinarySensorEntity):
     despite the class attribute looking correct in source).
     """
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    _attr_has_entity_name = True
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(
             hass,
@@ -132,6 +138,7 @@ class GatewayConnectivitySensor(MultiscrapeEntity, BinarySensorEntity):
             {},
         )
 
+        self._attr_device_info = device_info
         self._attr_unique_id = "xfinity_gateway_connectivity"
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
@@ -168,6 +175,7 @@ class GatewayEnabledDisabledSensor(MultiscrapeEntity, BinarySensorEntity):
     strings.json / translations/en.json's entity.binary_sensor.enabled_disabled.
     """
 
+    _attr_has_entity_name = True
     _attr_translation_key = "enabled_disabled"
 
     def __init__(
@@ -180,10 +188,12 @@ class GatewayEnabledDisabledSensor(MultiscrapeEntity, BinarySensorEntity):
         icon: str,
         field_name: str,
         field_select: str,
+        device_info,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, name, None, False, None, None, {})
 
+        self._attr_device_info = device_info
         self._attr_icon = icon
         self._attr_unique_id = f"xfinity_gateway_{unique_id_suffix}"
         self.entity_id = async_generate_entity_id(
@@ -214,12 +224,14 @@ class GatewayBridgeModeSensor(MultiscrapeEntity, BinarySensorEntity):
     that actually fits (see strings.json's entity.binary_sensor.bridge_mode).
     """
 
+    _attr_has_entity_name = True
     _attr_translation_key = "bridge_mode"
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, "Bridge Mode", None, False, None, None, {})
 
+        self._attr_device_info = device_info
         self._attr_icon = ICON_BRIDGE
         self._attr_unique_id = "xfinity_gateway_bridge_mode"
         self.entity_id = async_generate_entity_id(
@@ -252,10 +264,13 @@ class GatewayWifiSensor(MultiscrapeEntity, BinarySensorEntity):
     Connection Status state-dependent icon pattern in sensor.py.
     """
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    _attr_has_entity_name = True
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, "WiFi", None, False, None, None, {})
 
+        self._attr_device_info = device_info
         self._attr_icon = ICON_WIFI_OFF
         self._attr_unique_id = "xfinity_gateway_wifi"
         self.entity_id = async_generate_entity_id(
@@ -305,7 +320,9 @@ class GatewayLanConnectionSensor(MultiscrapeEntity, BinarySensorEntity):
     through the constructor rather than as a class attribute.
     """
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    _attr_has_entity_name = True
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(
             hass,
@@ -319,6 +336,7 @@ class GatewayLanConnectionSensor(MultiscrapeEntity, BinarySensorEntity):
             {},
         )
 
+        self._attr_device_info = device_info
         self._attr_unique_id = "xfinity_gateway_lan_connection"
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass

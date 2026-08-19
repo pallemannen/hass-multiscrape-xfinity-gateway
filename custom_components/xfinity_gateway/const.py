@@ -7,6 +7,8 @@ DOMAIN = "xfinity_gateway"
 
 CONF_HOST = "host"
 DEFAULT_HOST = "10.0.0.1"
+CONF_NAME = "name"
+DEFAULT_NAME = "Xfinity Gateway"
 DEFAULT_SCAN_INTERVAL = 300
 
 VALUE_TEMPLATE_STRIP = "{{ value.strip() }}"
