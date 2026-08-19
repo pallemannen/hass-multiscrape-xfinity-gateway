@@ -4,6 +4,7 @@
       "user": {
         "data": {
           "host": "Gateway IP address",
+          "name": "Device name",
           "username": "Username",
           "password": "Password",
           "scan_interval": "Scan interval (seconds)"
@@ -12,6 +13,7 @@
       "reconfigure": {
         "data": {
           "host": "Gateway IP address",
+          "name": "Device name",
           "username": "Username",
           "password": "Password",
           "scan_interval": "Scan interval (seconds)"

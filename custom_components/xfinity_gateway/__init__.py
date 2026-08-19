@@ -41,6 +41,7 @@ from custom_components.multiscrape.http_session import create_http_session
 from custom_components.multiscrape.scraper import create_scraper
 
 from .const import DOMAIN
+from .device import build_device_info
 from .util import (
     build_connection_status_conf,
     build_lan_conf,
@@ -129,9 +130,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _shutdown_session)
     )
 
+    device_info = build_device_info(hass, entry, coordinator, scraper)
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator,
         "scraper": scraper,
+        "device_info": device_info,
         "coordinator_connection_status": coordinator_connection_status,
         "scraper_connection_status": scraper_connection_status,
         "coordinator_lan": coordinator_lan,

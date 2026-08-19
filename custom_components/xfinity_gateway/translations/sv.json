@@ -4,6 +4,7 @@
       "user": {
         "data": {
           "host": "Internetgatewayens IP-adress",
+          "name": "Enhetsnamn",
           "username": "Användarnamn",
           "password": "Lösenord",
           "scan_interval": "Skanningsintervall (i sekunder)"
@@ -12,6 +13,7 @@
       "reconfigure": {
         "data": {
           "host": "Internetgatewayens IP-adress",
+          "name": "Enhetsnamn",
           "username": "Användarnamn",
           "password": "Lösenord",
           "scan_interval": "Skanningsintervall (i sekunder)"

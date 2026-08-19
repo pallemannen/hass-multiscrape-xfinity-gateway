@@ -111,29 +111,33 @@ async def async_setup_entry(
     scraper_lan = data["scraper_lan"]
     coordinator_wifi = data["coordinator_wifi"]
     scraper_wifi = data["scraper_wifi"]
+    device_info = data["device_info"]
 
     entities: list[SensorEntity] = [
-        GatewayFieldSensor(hass, coordinator, scraper, field) for field in FIELDS
+        GatewayFieldSensor(hass, coordinator, scraper, field, device_info) for field in FIELDS
     ]
-    entities.append(LastRebootSensor(hass, coordinator, scraper))
-    entities.append(ModeSensor(hass, coordinator, scraper))
+    entities.append(LastRebootSensor(hass, coordinator, scraper, device_info))
+    entities.append(ModeSensor(hass, coordinator, scraper, device_info))
 
     for field in CONNECTION_STATUS_FIELDS:
         entity_cls = NumericGatewayFieldSensor if field.numeric else GatewayFieldSensor
-        entities.append(entity_cls(hass, coordinator_cs, scraper_cs, field))
+        entities.append(entity_cls(hass, coordinator_cs, scraper_cs, field, device_info))
 
-    entities.append(WifiClientCountSensor(hass, coordinator_cs, scraper_cs))
+    entities.append(WifiClientCountSensor(hass, coordinator_cs, scraper_cs, device_info))
 
     entities.extend(
-        GatewayFieldSensor(hass, coordinator_lan, scraper_lan, field) for field in LAN_FIELDS
+        GatewayFieldSensor(hass, coordinator_lan, scraper_lan, field, device_info)
+        for field in LAN_FIELDS
     )
     entities.extend(
-        GatewayFieldSensor(hass, coordinator_wifi, scraper_wifi, field)
+        GatewayFieldSensor(hass, coordinator_wifi, scraper_wifi, field, device_info)
         for field in WIFI_MAC_FIELDS
     )
-    entities.append(LanSpeedSensor(hass, coordinator_lan, scraper_lan))
+    entities.append(LanSpeedSensor(hass, coordinator_lan, scraper_lan, device_info))
     entities.append(
-        MacAddressSensor(hass, coordinator_lan, scraper_lan, coordinator_wifi, scraper_wifi)
+        MacAddressSensor(
+            hass, coordinator_lan, scraper_lan, coordinator_wifi, scraper_wifi, device_info
+        )
     )
 
     async_add_entities(entities)
@@ -146,16 +150,20 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
     (connection_status.jst) - both just carry key/name/select.
     """
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         hass: HomeAssistant,
         coordinator,
         scraper,
         field: GatewayField | ConnectionStatusField,
+        device_info,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, field.name, None, False, None, None, {})
 
+        self._attr_device_info = device_info
         self._attr_unique_id = f"xfinity_gateway_{field.key}"
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
@@ -245,11 +253,13 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
     """
 
     _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_has_entity_name = True
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, "Last Reboot", None, False, None, None, {})
 
+        self._attr_device_info = device_info
         self._attr_icon = LAST_REBOOT_ICON
         self._attr_unique_id = "xfinity_gateway_last_reboot"
         self.entity_id = async_generate_entity_id(
@@ -315,13 +325,16 @@ class ModeSensor(MultiscrapeEntity, SensorEntity):
     (with a matching bridge/router icon) instead of on/off.
     """
 
-    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_has_entity_name = True
     _attr_options = ["Bridge", "Router"]
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, coordinator, scraper, "Mode", None, False, None, None, {})
+        super().__init__(
+            hass, coordinator, scraper, "Mode", SensorDeviceClass.ENUM, False, None, None, {}
+        )
 
+        self._attr_device_info = device_info
         self._attr_unique_id = "xfinity_gateway_mode"
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
@@ -357,14 +370,16 @@ class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
     """
 
     _attr_device_class = None
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(
             hass, coordinator, scraper, "Number of WiFi Clients", None, False, None, None, {}
         )
 
+        self._attr_device_info = device_info
         self._attr_icon = WIFI_CLIENT_COUNT_ICON
         self._attr_unique_id = "xfinity_gateway_wifi_client_count"
         self.entity_id = async_generate_entity_id(
@@ -416,11 +431,13 @@ class LanSpeedSensor(MultiscrapeEntity, SensorEntity):
     """
 
     _attr_device_class = None
+    _attr_has_entity_name = True
 
-    def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, "LAN Speed", None, False, None, None, {})
 
+        self._attr_device_info = device_info
         self._attr_icon = ICON_LAN_SPEED
         self._attr_unique_id = "xfinity_gateway_lan_speed"
         self.entity_id = async_generate_entity_id(
@@ -479,6 +496,7 @@ class MacAddressSensor(MultiscrapeEntity, SensorEntity):
     """
 
     _attr_device_class = None
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -487,17 +505,20 @@ class MacAddressSensor(MultiscrapeEntity, SensorEntity):
         scraper_lan,
         coordinator_wifi,
         scraper_wifi,
+        device_info,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(
             hass, coordinator_lan, scraper_lan, "MAC Address", None, False, None, None, {}
         )
 
+        self._attr_device_info = device_info
         self._attr_icon = ICON_MAC_ADDRESS
         self._attr_unique_id = "xfinity_gateway_mac_address"
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
         )
+        self._coordinator_wifi = coordinator_wifi
         self._scraper_wifi = scraper_wifi
 
         lan_mac_field = next(f for f in LAN_FIELDS if f.key == LAN_MAC_ADDRESS_FIELD_KEY)
@@ -524,7 +545,9 @@ class MacAddressSensor(MultiscrapeEntity, SensorEntity):
                 )
             ]
             candidates.extend(
-                self._scraper_wifi.scrape(selector, self._name)
+                self._scraper_wifi.scrape(
+                    selector, self._name, context=self._coordinator_wifi.scrape_context
+                )
                 for selector in self._wifi_selectors
             )
         except Exception as exception:  # noqa: BLE001
