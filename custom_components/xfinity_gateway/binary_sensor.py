@@ -109,14 +109,27 @@ class GatewayConnectivitySensor(MultiscrapeEntity, BinarySensorEntity):
 
     'active' (not 'connected') is the verified value on a real gateway - see
     this repo's previous manual Template Helper instructions in the README.
-    """
 
-    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    device_class is passed through the constructor, not set as a class
+    attribute - MultiscrapeEntity.__init__ unconditionally does
+    self._attr_device_class = device_class, which silently overwrote a
+    class-level _attr_device_class back to None every time this entity was
+    set up (verified live: the entity always reported device_class=None
+    despite the class attribute looking correct in source).
+    """
 
     def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
         """Initialize the sensor."""
         super().__init__(
-            hass, coordinator, scraper, "Connectivity", None, False, None, None, {}
+            hass,
+            coordinator,
+            scraper,
+            "Connectivity",
+            BinarySensorDeviceClass.CONNECTIVITY,
+            False,
+            None,
+            None,
+            {},
         )
 
         self._attr_unique_id = "xfinity_gateway_connectivity"
@@ -287,14 +300,23 @@ class GatewayLanConnectionSensor(MultiscrapeEntity, BinarySensorEntity):
 
     Mirrors GatewayConnectivitySensor's dynamic ICON_ACTIVE/ICON_INACTIVE icon
     swap for consistency, since this is also device_class=connectivity.
-    """
 
-    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    Same reasoning as GatewayConnectivitySensor for passing device_class
+    through the constructor rather than as a class attribute.
+    """
 
     def __init__(self, hass: HomeAssistant, coordinator, scraper) -> None:
         """Initialize the sensor."""
         super().__init__(
-            hass, coordinator, scraper, "LAN Connection", None, False, None, None, {}
+            hass,
+            coordinator,
+            scraper,
+            "LAN Connection",
+            BinarySensorDeviceClass.CONNECTIVITY,
+            False,
+            None,
+            None,
+            {},
         )
 
         self._attr_unique_id = "xfinity_gateway_lan_connection"
