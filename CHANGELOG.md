@@ -10,8 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - All entities now group under a single device (manufacturer/model/serial/software
   version read from the gateway itself), instead of appearing as ungrouped entities.
-- Config flow now asks for an optional device name (defaults to "Xfinity Gateway"),
-  used both as the config entry title and the device name shown in the UI.
+- Config flow now asks for a device name (defaults to "Xfinity Gateway" - change
+  it if you want something else), used both as the config entry title and the
+  device name shown in the UI.
 
 ### Fixed
 
