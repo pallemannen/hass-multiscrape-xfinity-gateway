@@ -17,6 +17,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfFrequency, UnitOfInformation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -32,6 +33,7 @@ from .const import (
     CURRENT_TIME_FORMAT,
     DOMAIN,
     FIELDS,
+    HARDWARE_FIELDS,
     ICON_ACTIVE,
     ICON_BRIDGE,
     ICON_INACTIVE,
@@ -45,6 +47,8 @@ from .const import (
     LAN_FIELDS,
     LAN_MAC_ADDRESS_FIELD_KEY,
     LAST_REBOOT_ICON,
+    MEMORY_FIELD_KEYS,
+    PROCESSOR_SPEED_FIELD_KEY,
     STATIC_ICONS,
     SYSTEM_UPTIME_FIELD_KEY,
     WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY,
@@ -60,6 +64,7 @@ from .const import (
     ICON_WIFI_INACTIVE,
     ConnectionStatusField,
     GatewayField,
+    HardwareField,
 )
 from .util import build_selector
 
@@ -111,6 +116,8 @@ async def async_setup_entry(
     scraper_lan = data["scraper_lan"]
     coordinator_wifi = data["coordinator_wifi"]
     scraper_wifi = data["scraper_wifi"]
+    coordinator_hardware = data["coordinator_hardware"]
+    scraper_hardware = data["scraper_hardware"]
     device_info = data["device_info"]
 
     entities: list[SensorEntity] = [
@@ -140,14 +147,24 @@ async def async_setup_entry(
         )
     )
 
+    for field in HARDWARE_FIELDS:
+        if field.key in MEMORY_FIELD_KEYS:
+            entity_cls = MemoryFieldSensor
+        elif field.key == PROCESSOR_SPEED_FIELD_KEY:
+            entity_cls = ProcessorSpeedSensor
+        else:
+            entity_cls = GatewayFieldSensor
+        entities.append(entity_cls(hass, coordinator_hardware, scraper_hardware, field, device_info))
+
     async_add_entities(entities)
 
 
 class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
     """A sensor reading a single field off a gateway status page.
 
-    Works for either GatewayField (network_setup.jst) or ConnectionStatusField
-    (connection_status.jst) - both just carry key/name/select.
+    Works for GatewayField (network_setup.jst), ConnectionStatusField
+    (connection_status.jst/lan.jst/wifi.jst) or HardwareField (hardware.jst) -
+    all three just carry key/name/select.
     """
 
     _attr_has_entity_name = True
@@ -157,7 +174,7 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
         hass: HomeAssistant,
         coordinator,
         scraper,
-        field: GatewayField | ConnectionStatusField,
+        field: GatewayField | ConnectionStatusField | HardwareField,
         device_info,
     ) -> None:
         """Initialize the sensor."""
@@ -240,6 +257,80 @@ class NumericGatewayFieldSensor(GatewayFieldSensor):
                 raw_value,
                 exception,
             )
+
+
+class MemoryFieldSensor(GatewayFieldSensor):
+    """A GatewayFieldSensor whose value is a "<n> MB" memory size (DRAM/Flash usage).
+
+    Uses _LEADING_INT_RE (defined below, alongside LanSpeedSensor) - safe to
+    reference here since it's resolved at call time, not class-definition time.
+    """
+
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data, parsed as an integer MB value."""
+        try:
+            raw_value = self.scraper.scrape(
+                self._selector, self._name, context=self.coordinator.scrape_context
+            )
+        except Exception as exception:  # noqa: BLE001
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        match = _LEADING_INT_RE.search(str(raw_value) if raw_value is not None else "")
+        if not match:
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Could not parse %s as a memory size in MB (raw value %r)",
+                self.scraper.name,
+                self._name,
+                raw_value,
+            )
+            return
+
+        self._attr_native_value = int(match.group())
+
+
+class ProcessorSpeedSensor(GatewayFieldSensor):
+    """A GatewayFieldSensor whose value is a "<n> MHz" processor speed."""
+
+    _attr_device_class = SensorDeviceClass.FREQUENCY
+    _attr_native_unit_of_measurement = UnitOfFrequency.MEGAHERTZ
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data, parsed as an integer MHz value."""
+        try:
+            raw_value = self.scraper.scrape(
+                self._selector, self._name, context=self.coordinator.scrape_context
+            )
+        except Exception as exception:  # noqa: BLE001
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
+            )
+            return
+
+        match = _LEADING_INT_RE.search(str(raw_value) if raw_value is not None else "")
+        if not match:
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Could not parse %s as a frequency in MHz (raw value %r)",
+                self.scraper.name,
+                self._name,
+                raw_value,
+            )
+            return
+
+        self._attr_native_value = int(match.group())
 
 
 class LastRebootSensor(MultiscrapeEntity, SensorEntity):

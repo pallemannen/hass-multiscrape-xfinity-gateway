@@ -14,15 +14,16 @@ _async_process_config), and then forwards setup to the sensor/binary_sensor
 platforms via the config entry, the same way any other config-flow
 integration does.
 
-The gateway has four separate status pages we scrape: network_setup.jst (the
+The gateway has five separate status pages we scrape: network_setup.jst (the
 original set of fields), connection_status.jst (LAN/Wi-Fi summary fields),
-lan.jst (per-port LAN Ethernet status/speed/MAC) and wifi.jst (per-band Wi-Fi
-MAC addresses). Rather than modify multiscrape's own coordinator (which only
-ever fetches a single resource per cycle), this builds four independent
-scraper/coordinator pairs, one per page - all sharing the same authenticated
-HttpSession (and thus the same login/cookies) as the first, so this doesn't
-multiply the login load on the gateway. Four independent multiscrape
-coordinators, one shared session.
+lan.jst (per-port LAN Ethernet status/speed/MAC), wifi.jst (per-band Wi-Fi
+MAC addresses) and hardware.jst (processor speed, DRAM/Flash memory usage).
+Rather than modify multiscrape's own coordinator (which only ever fetches a
+single resource per cycle), this builds five independent scraper/coordinator
+pairs, one per page - all sharing the same authenticated HttpSession (and
+thus the same login/cookies) as the first, so this doesn't multiply the
+login load on the gateway. Five independent multiscrape coordinators, one
+shared session.
 """
 from __future__ import annotations
 
@@ -44,6 +45,7 @@ from .const import DOMAIN
 from .device import build_device_info
 from .util import (
     build_connection_status_conf,
+    build_hardware_conf,
     build_lan_conf,
     build_scraper_conf,
     build_wifi_conf,
@@ -56,6 +58,7 @@ SCRAPER_CONFIG_NAME = "xfinity_gateway"
 CONNECTION_STATUS_CONFIG_NAME = "xfinity_gateway_connection_status"
 LAN_CONFIG_NAME = "xfinity_gateway_lan"
 WIFI_CONFIG_NAME = "xfinity_gateway_wifi"
+HARDWARE_CONFIG_NAME = "xfinity_gateway_hardware"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -123,6 +126,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await coordinator_wifi.async_config_entry_first_refresh()
 
+    # Fifth page (hardware.jst), same shared session.
+    hardware_conf = build_hardware_conf(conf, scraper_conf[CONF_SCAN_INTERVAL])
+    scraper_hardware = create_scraper(HARDWARE_CONFIG_NAME, hardware_conf, hass, file_manager)
+    request_manager_hardware = create_content_request_manager(
+        HARDWARE_CONFIG_NAME, hardware_conf, hass, session
+    )
+    coordinator_hardware = create_multiscrape_coordinator(
+        HARDWARE_CONFIG_NAME,
+        hardware_conf,
+        hass,
+        request_manager_hardware,
+        file_manager,
+        scraper_hardware,
+    )
+    await coordinator_hardware.async_config_entry_first_refresh()
+
     async def _shutdown_session(_event, _session=session):
         await _session.async_close()
 
@@ -142,6 +161,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "scraper_lan": scraper_lan,
         "coordinator_wifi": coordinator_wifi,
         "scraper_wifi": scraper_wifi,
+        "coordinator_hardware": coordinator_hardware,
+        "scraper_hardware": scraper_hardware,
         "session": session,
     }
 
