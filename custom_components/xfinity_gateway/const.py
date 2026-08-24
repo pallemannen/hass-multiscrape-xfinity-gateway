@@ -285,6 +285,76 @@ WIFI_MAC_FIELDS: tuple[ConnectionStatusField, ...] = (
     ),
 )
 
+@dataclass(frozen=True)
+class HardwareField:
+    """A single scraped field on the gateway's hardware.jst status page."""
+
+    key: str
+    name: str
+    select: str
+
+
+# hardware.jst: unlike the other pages, every label here carries its own
+# unique id (hardmess2..hardmess10, vend, sernum) - a plain adjacent-sibling
+# selector off that id is used instead of the nth-of-type scoping the other
+# pages need. Model, Vendor and Serial Number are deliberately skipped here -
+# they duplicate FIELDS' model_number/manufacturer/serial_number, already
+# scraped from network_setup.jst.
+HARDWARE_FIELDS: tuple[HardwareField, ...] = (
+    HardwareField(
+        "hardware_revision",
+        "Hardware Revision",
+        "#hardmess3 + span.value",
+    ),
+    HardwareField(
+        "processor_speed",
+        "Processor Speed",
+        "#hardmess4 + span.value",
+    ),
+    HardwareField(
+        "dram_total_memory",
+        "DRAM Total Memory",
+        "#hardmess5 + span.value",
+    ),
+    HardwareField(
+        "dram_used_memory",
+        "DRAM Used Memory",
+        "#hardmess6 + span.value",
+    ),
+    HardwareField(
+        "dram_available_memory",
+        "DRAM Available Memory",
+        "#hardmess7 + span.value",
+    ),
+    HardwareField(
+        "flash_total_memory",
+        "Flash Total Memory",
+        "#hardmess8 + span.value",
+    ),
+    HardwareField(
+        "flash_used_memory",
+        "Flash Used Memory",
+        "#hardmess9 + span.value",
+    ),
+    HardwareField(
+        "flash_available_memory",
+        "Flash Available Memory",
+        "#hardmess10 + span.value",
+    ),
+)
+
+PROCESSOR_SPEED_FIELD_KEY = "processor_speed"
+MEMORY_FIELD_KEYS = frozenset(
+    {
+        "dram_total_memory",
+        "dram_used_memory",
+        "dram_available_memory",
+        "flash_total_memory",
+        "flash_used_memory",
+        "flash_available_memory",
+    }
+)
+
 CONNECTION_STATUS_FIELD_KEY = "connection_status"
 CURRENT_TIME_FIELD_KEY = "current_time"
 SYSTEM_UPTIME_FIELD_KEY = "system_uptime"
@@ -374,4 +444,12 @@ STATIC_ICONS: dict[str, str] = {
     "wifi_24ghz_mac_address": ICON_MAC_ADDRESS,
     "wifi_5ghz_mac_address": ICON_MAC_ADDRESS,
     "wifi_6ghz_mac_address": ICON_MAC_ADDRESS,
+    "hardware_revision": "mdi:chip",
+    "processor_speed": "mdi:speedometer",
+    "dram_total_memory": "mdi:memory",
+    "dram_used_memory": "mdi:memory",
+    "dram_available_memory": "mdi:memory",
+    "flash_total_memory": "mdi:harddisk",
+    "flash_used_memory": "mdi:harddisk",
+    "flash_available_memory": "mdi:harddisk",
 }
