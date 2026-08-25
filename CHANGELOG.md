@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.0] - 2026-08-24
+
+### Added
+
+- New sensors scraped from the gateway's Hardware page (`/hardware.jst`):
+  Hardware Revision, Processor Speed, and DRAM/Flash Total/Used/Available
+  Memory. Model, Vendor and Serial Number on that page are not duplicated -
+  they're already exposed via the existing network_setup.jst-sourced sensors.
+
 ## [1.5.0] - 2026-08-19
 
 ### Added
