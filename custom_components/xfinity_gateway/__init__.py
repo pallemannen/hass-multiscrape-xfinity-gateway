@@ -32,6 +32,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL, EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from custom_components.multiscrape.coordinator import (
     create_content_request_manager,
@@ -41,7 +42,7 @@ from custom_components.multiscrape.file import create_file_manager
 from custom_components.multiscrape.http_session import create_http_session
 from custom_components.multiscrape.scraper import create_scraper
 
-from .const import DOMAIN
+from .const import DOMAIN, RETIRED_SENSOR_KEYS
 from .device import build_device_info
 from .util import (
     build_connection_status_conf,
@@ -49,6 +50,7 @@ from .util import (
     build_lan_conf,
     build_scraper_conf,
     build_wifi_conf,
+    entity_object_id,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -167,8 +169,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _async_migrate_entities(hass, entry)
 
     return True
+
+
+def _async_migrate_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove retired sensors, and rename old key-based entity IDs to name-based ones.
+
+    Up to 1.6.0 entity IDs were "<domain>.<unique_id>"; they now follow the entity
+    name, like the AT&T Gateway integration's. Only entities still carrying that
+    old automatic ID are renamed, so IDs renamed by hand are left alone. Several
+    passes, since one rename can free the ID another one needs (Product Type
+    moves off "..._model" before Model can take it).
+    """
+    registry = er.async_get(hass)
+    retired = {f"xfinity_gateway_{key}" for key in RETIRED_SENSOR_KEYS}
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain == "sensor" and entity.unique_id in retired:
+            registry.async_remove(entity.entity_id)
+
+    for _ in range(3):
+        renamed = False
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+            if entity.entity_id != f"{entity.domain}.{entity.unique_id}" or not entity.original_name:
+                continue
+            new_entity_id = f"{entity.domain}.{entity_object_id(entity.original_name)}"
+            if new_entity_id == entity.entity_id or registry.async_get(new_entity_id):
+                continue
+            _LOGGER.info("Renaming %s to %s", entity.entity_id, new_entity_id)
+            registry.async_update_entity(entity.entity_id, new_entity_id=new_entity_id)
+            renamed = True
+        if not renamed:
+            break
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -156,12 +156,12 @@ class ConnectionStatusField:
 CONNECTION_STATUS_FIELDS: tuple[ConnectionStatusField, ...] = (
     ConnectionStatusField(
         "lan_ip_address",
-        "IP Address",
+        "LAN IP Address",
         "#ipaddloc + span.value",
     ),
     ConnectionStatusField(
         "lan_netmask",
-        "Netmask",
+        "LAN Netmask",
         "#subnetloc + span.value",
     ),
     ConnectionStatusField(
@@ -182,7 +182,7 @@ CONNECTION_STATUS_FIELDS: tuple[ConnectionStatusField, ...] = (
     ),
     ConnectionStatusField(
         "wifi_24ghz_client_count",
-        "Number of WiFi 2.4 GHz Clients",
+        "Number of Wi-Fi 2.4 GHz Clients",
         ".private-wifi:nth-of-type(1) .form-row:nth-of-type(4) span.value",
         numeric=True,
     ),
@@ -193,7 +193,7 @@ CONNECTION_STATUS_FIELDS: tuple[ConnectionStatusField, ...] = (
     ),
     ConnectionStatusField(
         "wifi_5ghz_client_count",
-        "Number of WiFi 5 GHz Clients",
+        "Number of Wi-Fi 5 GHz Clients",
         ".private-wifi:nth-of-type(2) .form-row:nth-of-type(4) span.value",
         numeric=True,
     ),
@@ -204,7 +204,7 @@ CONNECTION_STATUS_FIELDS: tuple[ConnectionStatusField, ...] = (
     ),
     ConnectionStatusField(
         "wifi_6ghz_client_count",
-        "Number of WiFi 6 GHz Clients",
+        "Number of Wi-Fi 6 GHz Clients",
         ".private-wifi:nth-of-type(3) .form-row:nth-of-type(4) span.value",
         numeric=True,
     ),
@@ -303,7 +303,7 @@ class HardwareField:
 HARDWARE_FIELDS: tuple[HardwareField, ...] = (
     HardwareField(
         "hardware_revision",
-        "Hardware Revision",
+        "Hardware Version",
         "#hardmess3 + span.value",
     ),
     HardwareField(
@@ -386,6 +386,23 @@ WIFI_24GHZ_MAC_ADDRESS_FIELD_KEY = "wifi_24ghz_mac_address"
 WIFI_5GHZ_MAC_ADDRESS_FIELD_KEY = "wifi_5ghz_mac_address"
 WIFI_6GHZ_MAC_ADDRESS_FIELD_KEY = "wifi_6ghz_mac_address"
 
+# Sensors no longer created: their information is in a binary sensor (or in
+# MAC Address) instead. Their registry entries are removed at startup.
+RETIRED_SENSOR_KEYS = frozenset(
+    {
+        CONNECTION_STATUS_FIELD_KEY,
+        DHCP_CLIENT_IPV4_FIELD_KEY,
+        DHCP_CLIENT_IPV6_FIELD_KEY,
+        BRIDGE_MESSAGE_FIELD_KEY,
+        LAN_DHCP_SERVER_STATUS_FIELD_KEY,
+        LAN_MAC_ADDRESS_FIELD_KEY,
+        "mode",
+        *WIFI_STATUS_FIELD_KEYS,
+        *(f"lan_{port}_connection_status" for port in range(1, 5)),
+    }
+)
+LAN_PORT_SPEED_FIELD_KEYS = frozenset(f"lan_{port}_speed" for port in range(1, 5))
+
 # Format the gateway reports its own "Current Time" field in, e.g. "2026-08-14 09:12:03".
 CURRENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -426,7 +443,12 @@ STATIC_ICONS: dict[str, str] = {
     "software_version": "mdi:source-branch",
     "bridge_message": "mdi:bridge",
     "lan_ip_address": "mdi:ip-network-outline",
-    "lan_netmask": "mdi:lan",
+    "lan_netmask": "mdi:slash-forward-box",
+    "ip_address": "mdi:ip-network-outline",
+    "lan_speed": ICON_LAN_SPEED,
+    "wifi_client_count": WIFI_CLIENT_COUNT_ICON,
+    "mac_address": ICON_MAC_ADDRESS,
+    "last_reboot": LAST_REBOOT_ICON,
     "lan_dhcp_server_status": ICON_DHCP,
     "lan_client_count": "mdi:lan",
     "wifi_24ghz_client_count": "mdi:wifi-settings",
