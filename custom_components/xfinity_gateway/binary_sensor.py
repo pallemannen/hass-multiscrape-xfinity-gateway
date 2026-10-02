@@ -1,6 +1,7 @@
 """Binary sensors for the Xfinity Gateway integration."""
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 
 from homeassistant.components.binary_sensor import (
@@ -22,26 +23,64 @@ from .const import (
     DHCP_CLIENT_IPV6_FIELD_KEY,
     DOMAIN,
     FIELDS,
-    ICON_ACTIVE,
-    ICON_BRIDGE,
-    ICON_DHCP,
-    ICON_INACTIVE,
-    ICON_WIFI_OFF,
-    ICON_WIFI_ON,
-    LAN_1_CONNECTION_STATUS_FIELD_KEY,
-    LAN_2_CONNECTION_STATUS_FIELD_KEY,
-    LAN_3_CONNECTION_STATUS_FIELD_KEY,
-    LAN_4_CONNECTION_STATUS_FIELD_KEY,
     LAN_DHCP_SERVER_STATUS_FIELD_KEY,
     LAN_FIELDS,
     WIFI_24GHZ_STATUS_FIELD_KEY,
     WIFI_5GHZ_STATUS_FIELD_KEY,
     WIFI_6GHZ_STATUS_FIELD_KEY,
 )
-from .util import build_selector
+from .util import build_selector, entity_object_id
 
 _LOGGER = logging.getLogger(__name__)
 ENTITY_ID_FORMAT = "binary_sensor.{}"
+
+_WIFI_BANDS = (
+    ("wifi_24ghz", "Wi-Fi 2.4 GHz", WIFI_24GHZ_STATUS_FIELD_KEY),
+    ("wifi_5ghz", "Wi-Fi 5 GHz", WIFI_5GHZ_STATUS_FIELD_KEY),
+    ("wifi_6ghz", "Wi-Fi 6 GHz", WIFI_6GHZ_STATUS_FIELD_KEY),
+)
+
+
+def _field(fields, key):
+    return next(f for f in fields if f.key == key)
+
+
+class _Reader:
+    """Reads one field from a scraper's latest page content."""
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, field) -> None:
+        self._coordinator = coordinator
+        self._scraper = scraper
+        self._name = field.name
+        self._selector = build_selector(hass, field.name, field.select)
+
+    def value(self) -> str | None:
+        value = self._scraper.scrape(
+            self._selector, self._name, context=self._coordinator.scrape_context
+        )
+        return value.strip() if value else None
+
+
+def _two_state(value: str | None, name: str, on: str, off: str) -> bool | None:
+    """Map a gateway value to on/off; unexpected values become unknown (None)."""
+    if not value:
+        return None
+    value = value.lower()
+    if value == on:
+        return True
+    if value == off:
+        return False
+    _LOGGER.debug("Unexpected %s value %r", name, value)
+    return None
+
+
+def _any_on(states: list[bool | None]) -> bool | None:
+    """On if any is on, off if all are off, otherwise unknown."""
+    if any(state is True for state in states):
+        return True
+    if states and all(state is False for state in states):
+        return False
+    return None
 
 
 async def async_setup_entry(
@@ -51,327 +90,136 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Xfinity Gateway binary sensors from a config entry."""
     data = hass.data[DOMAIN][entry.entry_id]
-    coordinator = data["coordinator"]
-    scraper = data["scraper"]
-    coordinator_cs = data["coordinator_connection_status"]
-    scraper_cs = data["scraper_connection_status"]
-    coordinator_lan = data["coordinator_lan"]
-    scraper_lan = data["scraper_lan"]
+    main = (data["coordinator"], data["scraper"])
+    cs = (data["coordinator_connection_status"], data["scraper_connection_status"])
+    lan = (data["coordinator_lan"], data["scraper_lan"])
     device_info = data["device_info"]
 
-    dhcp_client_ipv4_field = next(f for f in FIELDS if f.key == DHCP_CLIENT_IPV4_FIELD_KEY)
-    dhcp_client_ipv6_field = next(f for f in FIELDS if f.key == DHCP_CLIENT_IPV6_FIELD_KEY)
-    dhcp_server_field = next(
-        f for f in CONNECTION_STATUS_FIELDS if f.key == LAN_DHCP_SERVER_STATUS_FIELD_KEY
+    wan_reader = _Reader(hass, *main, _field(FIELDS, CONNECTION_STATUS_FIELD_KEY))
+    port_readers = [
+        _Reader(hass, *lan, _field(LAN_FIELDS, f"lan_{port}_connection_status"))
+        for port in range(1, 5)
+    ]
+    band_readers = [
+        _Reader(hass, *cs, _field(CONNECTION_STATUS_FIELDS, key)) for _, _, key in _WIFI_BANDS
+    ]
+
+    def wan() -> bool | None:
+        # Anything other than "Active" means the WAN isn't up.
+        value = wan_reader.value()
+        return value.lower() == "active" if value is not None else None
+
+    def port(reader: _Reader) -> bool | None:
+        return _two_state(reader.value(), "LAN port", "active", "inactive")
+
+    def band(reader: _Reader) -> bool | None:
+        return _two_state(reader.value(), "Wi-Fi band", "active", "inactive")
+
+    def lan_any() -> bool | None:
+        return _any_on([port(r) for r in port_readers])
+
+    def wifi_any() -> bool | None:
+        return _any_on([band(r) for r in band_readers])
+
+    def connectivity() -> bool | None:
+        if not (up := wan()):
+            return up
+        lan_up, wifi_up = lan_any(), wifi_any()
+        if lan_up or wifi_up:
+            return True
+        if lan_up is False and wifi_up is False:
+            return False
+        return None
+
+    connectivity_class = BinarySensorDeviceClass.CONNECTIVITY
+    entities: list[BinarySensorEntity] = [
+        DerivedSensor(hass, *main, device_info, "connectivity", "Connectivity", connectivity,
+                      connectivity_class, extra=(cs[0], lan[0])),
+        DerivedSensor(hass, *main, device_info, "wan", "WAN", wan, connectivity_class),
+        DerivedSensor(hass, *lan, device_info, "lan_connection", "LAN", lan_any, connectivity_class),
+        DerivedSensor(hass, *cs, device_info, "wifi", "Wi-Fi", wifi_any),
+    ]
+    entities.extend(
+        DerivedSensor(hass, *lan, device_info, f"lan_{n}", f"LAN {n}",
+                      lambda r=reader: port(r), connectivity_class)
+        for n, reader in enumerate(port_readers, start=1)
+    )
+    entities.extend(
+        DerivedSensor(hass, *cs, device_info, key, name, lambda r=reader: band(r))
+        for (key, name, _), reader in zip(_WIFI_BANDS, band_readers)
     )
 
-    async_add_entities(
-        [
-            GatewayConnectivitySensor(hass, coordinator, scraper, device_info),
-            GatewayEnabledDisabledSensor(
-                hass,
-                coordinator,
-                scraper,
-                "DHCP Client",
-                "dhcp_client",
-                ICON_DHCP,
-                dhcp_client_ipv4_field.name,
-                dhcp_client_ipv4_field.select,
-                device_info,
-            ),
-            GatewayEnabledDisabledSensor(
-                hass,
-                coordinator,
-                scraper,
-                "DHCPv6 Client",
-                "dhcpv6_client",
-                ICON_DHCP,
-                dhcp_client_ipv6_field.name,
-                dhcp_client_ipv6_field.select,
-                device_info,
-            ),
-            GatewayEnabledDisabledSensor(
-                hass,
-                coordinator_cs,
-                scraper_cs,
-                "DHCP Server",
-                "dhcp_server",
-                ICON_DHCP,
-                dhcp_server_field.name,
-                dhcp_server_field.select,
-                device_info,
-            ),
-            GatewayBridgeModeSensor(hass, coordinator, scraper, device_info),
-            GatewayWifiSensor(hass, coordinator_cs, scraper_cs, device_info),
-            GatewayLanConnectionSensor(hass, coordinator_lan, scraper_lan, device_info),
-        ]
+    for key, name, coord, fields, field_key in (
+        ("dhcp_client", "DHCP Client", main, FIELDS, DHCP_CLIENT_IPV4_FIELD_KEY),
+        ("dhcpv6_client", "DHCPv6 Client", main, FIELDS, DHCP_CLIENT_IPV6_FIELD_KEY),
+        ("dhcp_server", "DHCP Server", cs, CONNECTION_STATUS_FIELDS, LAN_DHCP_SERVER_STATUS_FIELD_KEY),
+    ):
+        reader = _Reader(hass, *coord, _field(fields, field_key))
+        entities.append(
+            DerivedSensor(hass, *coord, device_info, key, name,
+                          lambda r=reader, n=name: _two_state(r.value(), n, "enabled", "disabled"),
+                          translation_key="enabled_disabled")
+        )
+
+    bridge_reader = _Reader(hass, *main, _field(FIELDS, BRIDGE_MESSAGE_FIELD_KEY))
+
+    def bridge_mode() -> bool | None:
+        value = bridge_reader.value()
+        return "in bridge mode" in value.lower() if value else None
+
+    entities.append(
+        DerivedSensor(hass, *main, device_info, "bridge_mode", "Bridge Mode", bridge_mode,
+                      translation_key="bridge_mode")
     )
+    async_add_entities(entities)
 
 
-class GatewayConnectivitySensor(MultiscrapeEntity, BinarySensorEntity):
-    """Derived connectivity sensor: on when the scraped connection status is 'active'.
+class DerivedSensor(MultiscrapeEntity, BinarySensorEntity):
+    """A binary sensor computed from the latest page data (icons from icons.json).
 
-    'active' (not 'connected') is the verified value on a real gateway - see
-    this repo's previous manual Template Helper instructions in the README.
-
-    device_class is passed through the constructor, not set as a class
-    attribute - MultiscrapeEntity.__init__ unconditionally does
-    self._attr_device_class = device_class, which silently overwrote a
-    class-level _attr_device_class back to None every time this entity was
-    set up (verified live: the entity always reported device_class=None
-    despite the class attribute looking correct in source).
+    device_class goes through MultiscrapeEntity's constructor: it overwrites a
+    class-level _attr_device_class with its own argument.
     """
 
     _attr_has_entity_name = True
-
-    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
-        """Initialize the sensor."""
-        super().__init__(
-            hass,
-            coordinator,
-            scraper,
-            "Connectivity",
-            BinarySensorDeviceClass.CONNECTIVITY,
-            False,
-            None,
-            None,
-            {},
-        )
-
-        self._attr_device_info = device_info
-        self._attr_unique_id = "xfinity_gateway_connectivity"
-        self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
-        )
-        self._attr_icon = ICON_INACTIVE
-        status_field = next(f for f in FIELDS if f.key == CONNECTION_STATUS_FIELD_KEY)
-        self._selector = build_selector(hass, status_field.name, status_field.select)
-
-    def _update_sensor(self) -> None:
-        """Update state from the scraper data."""
-        try:
-            value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
-            )
-            self._attr_is_on = bool(value) and value.strip().lower() == "active"
-        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
-            self.coordinator.request_reauth()
-            self._scrape_error = True
-            _LOGGER.warning(
-                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
-            )
-            return
-
-        self._attr_icon = ICON_ACTIVE if self._attr_is_on else ICON_INACTIVE
-
-
-class GatewayEnabledDisabledSensor(MultiscrapeEntity, BinarySensorEntity):
-    """Generic binary sensor: on when a scraped field's value is 'enabled'.
-
-    No built-in HA device_class renders exactly "Enabled"/"Disabled" (the
-    closest, `running`, says "Running"/"Not running") - so this uses a
-    translation_key instead to get that custom wording, rather than force a
-    mismatched device_class just to reuse its built-in strings. See
-    strings.json / translations/en.json's entity.binary_sensor.enabled_disabled.
-    """
-
-    _attr_has_entity_name = True
-    _attr_translation_key = "enabled_disabled"
 
     def __init__(
         self,
         hass: HomeAssistant,
         coordinator,
         scraper,
-        name: str,
-        unique_id_suffix: str,
-        icon: str,
-        field_name: str,
-        field_select: str,
         device_info,
+        key: str,
+        name: str,
+        compute: Callable[[], bool | None],
+        device_class: BinarySensorDeviceClass | None = None,
+        extra=(),
+        translation_key: str | None = None,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, coordinator, scraper, name, None, False, None, None, {})
-
+        super().__init__(hass, coordinator, scraper, name, device_class, False, None, None, {})
+        self._compute = compute
+        self._extra_coordinators = extra
         self._attr_device_info = device_info
-        self._attr_icon = icon
-        self._attr_unique_id = f"xfinity_gateway_{unique_id_suffix}"
+        self._attr_unique_id = f"xfinity_gateway_{key}"
+        self._attr_translation_key = translation_key or key
         self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+            ENTITY_ID_FORMAT, entity_object_id(name), hass=hass
         )
-        self._selector = build_selector(hass, field_name, field_select)
+
+    async def async_added_to_hass(self) -> None:
+        """Also update when the other pages this sensor reads are refreshed."""
+        await super().async_added_to_hass()
+        for coordinator in self._extra_coordinators:
+            self.async_on_remove(coordinator.async_add_listener(self._handle_coordinator_update))
 
     def _update_sensor(self) -> None:
-        """Update state from the scraper data."""
+        """Update state from the scraped data."""
         try:
-            value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
-            )
-            self._attr_is_on = bool(value) and value.strip().lower() == "enabled"
+            self._attr_is_on = self._compute()
         except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
             self.coordinator.request_reauth()
             self._scrape_error = True
             _LOGGER.warning(
                 "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
             )
-
-
-class GatewayBridgeModeSensor(MultiscrapeEntity, BinarySensorEntity):
-    """Derived sensor: on when the Bridge Message reports being in bridge mode.
-
-    Not "enabled/disabled" wording like GatewayEnabledDisabledSensor - "mode"
-    reads oddly that way, so this gets its own translation_key with wording
-    that actually fits (see strings.json's entity.binary_sensor.bridge_mode).
-    """
-
-    _attr_has_entity_name = True
-    _attr_translation_key = "bridge_mode"
-
-    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
-        """Initialize the sensor."""
-        super().__init__(hass, coordinator, scraper, "Bridge Mode", None, False, None, None, {})
-
-        self._attr_device_info = device_info
-        self._attr_icon = ICON_BRIDGE
-        self._attr_unique_id = "xfinity_gateway_bridge_mode"
-        self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
-        )
-        message_field = next(f for f in FIELDS if f.key == BRIDGE_MESSAGE_FIELD_KEY)
-        self._selector = build_selector(hass, message_field.name, message_field.select)
-
-    def _update_sensor(self) -> None:
-        """Update state from the scraper data."""
-        try:
-            value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
-            )
-            self._attr_is_on = bool(value) and "in bridge mode" in value.strip().lower()
-        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
-            self.coordinator.request_reauth()
-            self._scrape_error = True
-            _LOGGER.warning(
-                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
-            )
-
-
-class GatewayWifiSensor(MultiscrapeEntity, BinarySensorEntity):
-    """Derived sensor: on when any Wi-Fi band (2.4/5/6 GHz) is not 'Inactive'.
-
-    Uses standard on/off wording (no translation_key) - "Enabled"/"Disabled"
-    doesn't fit "WiFi" as a whole the way it fits a single DHCP toggle. Icon
-    switches between wifi/wifi-off instead, mirroring the Connectivity /
-    Connection Status state-dependent icon pattern in sensor.py.
-    """
-
-    _attr_has_entity_name = True
-
-    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
-        """Initialize the sensor."""
-        super().__init__(hass, coordinator, scraper, "WiFi", None, False, None, None, {})
-
-        self._attr_device_info = device_info
-        self._attr_icon = ICON_WIFI_OFF
-        self._attr_unique_id = "xfinity_gateway_wifi"
-        self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
-        )
-        band_keys = (
-            WIFI_24GHZ_STATUS_FIELD_KEY,
-            WIFI_5GHZ_STATUS_FIELD_KEY,
-            WIFI_6GHZ_STATUS_FIELD_KEY,
-        )
-        self._selectors = [
-            build_selector(hass, band_field.name, band_field.select)
-            for key in band_keys
-            for band_field in CONNECTION_STATUS_FIELDS
-            if band_field.key == key
-        ]
-
-    def _update_sensor(self) -> None:
-        """Update state from the scraper data."""
-        try:
-            any_active = False
-            for selector in self._selectors:
-                value = self.scraper.scrape(
-                    selector, self._name, context=self.coordinator.scrape_context
-                )
-                if value and value.strip().lower() != "inactive":
-                    any_active = True
-            self._attr_is_on = any_active
-        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
-            self.coordinator.request_reauth()
-            self._scrape_error = True
-            _LOGGER.warning(
-                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
-            )
-            return
-
-        self._attr_icon = ICON_WIFI_ON if self._attr_is_on else ICON_WIFI_OFF
-
-
-class GatewayLanConnectionSensor(MultiscrapeEntity, BinarySensorEntity):
-    """Derived connectivity sensor: on when any of the 4 LAN Ethernet ports is 'Active'.
-
-    Mirrors GatewayConnectivitySensor's dynamic ICON_ACTIVE/ICON_INACTIVE icon
-    swap for consistency, since this is also device_class=connectivity.
-
-    Same reasoning as GatewayConnectivitySensor for passing device_class
-    through the constructor rather than as a class attribute.
-    """
-
-    _attr_has_entity_name = True
-
-    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
-        """Initialize the sensor."""
-        super().__init__(
-            hass,
-            coordinator,
-            scraper,
-            "LAN Connection",
-            BinarySensorDeviceClass.CONNECTIVITY,
-            False,
-            None,
-            None,
-            {},
-        )
-
-        self._attr_device_info = device_info
-        self._attr_unique_id = "xfinity_gateway_lan_connection"
-        self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
-        )
-        self._attr_icon = ICON_INACTIVE
-        port_keys = (
-            LAN_1_CONNECTION_STATUS_FIELD_KEY,
-            LAN_2_CONNECTION_STATUS_FIELD_KEY,
-            LAN_3_CONNECTION_STATUS_FIELD_KEY,
-            LAN_4_CONNECTION_STATUS_FIELD_KEY,
-        )
-        self._selectors = [
-            build_selector(hass, field.name, field.select)
-            for key in port_keys
-            for field in LAN_FIELDS
-            if field.key == key
-        ]
-
-    def _update_sensor(self) -> None:
-        """Update state from the scraper data."""
-        try:
-            any_active = False
-            for selector in self._selectors:
-                value = self.scraper.scrape(
-                    selector, self._name, context=self.coordinator.scrape_context
-                )
-                if value and value.strip().lower() == "active":
-                    any_active = True
-            self._attr_is_on = any_active
-        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
-            self.coordinator.request_reauth()
-            self._scrape_error = True
-            _LOGGER.warning(
-                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
-            )
-            return
-
-        self._attr_icon = ICON_ACTIVE if self._attr_is_on else ICON_INACTIVE

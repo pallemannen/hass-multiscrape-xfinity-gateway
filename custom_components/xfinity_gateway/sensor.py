@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import socket
 from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import (
@@ -17,7 +18,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfFrequency, UnitOfInformation
+from homeassistant.const import CONF_HOST, UnitOfDataRate, UnitOfFrequency, UnitOfInformation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -26,29 +27,25 @@ from homeassistant.util import dt as dt_util
 from custom_components.multiscrape.entity import MultiscrapeEntity
 
 from .const import (
-    BRIDGE_MESSAGE_FIELD_KEY,
-    CONNECTION_STATUS_FIELD_KEY,
     CONNECTION_STATUS_FIELDS,
     CURRENT_TIME_FIELD_KEY,
     CURRENT_TIME_FORMAT,
     DOMAIN,
     FIELDS,
     HARDWARE_FIELDS,
-    ICON_ACTIVE,
-    ICON_BRIDGE,
-    ICON_INACTIVE,
     ICON_LAN_SPEED,
     ICON_MAC_ADDRESS,
-    ICON_ROUTER,
     LAN_1_SPEED_FIELD_KEY,
     LAN_2_SPEED_FIELD_KEY,
     LAN_3_SPEED_FIELD_KEY,
     LAN_4_SPEED_FIELD_KEY,
     LAN_FIELDS,
     LAN_MAC_ADDRESS_FIELD_KEY,
+    LAN_PORT_SPEED_FIELD_KEYS,
     LAST_REBOOT_ICON,
     MEMORY_FIELD_KEYS,
     PROCESSOR_SPEED_FIELD_KEY,
+    RETIRED_SENSOR_KEYS,
     STATIC_ICONS,
     SYSTEM_UPTIME_FIELD_KEY,
     WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY,
@@ -59,14 +56,11 @@ from .const import (
     WIFI_6GHZ_MAC_ADDRESS_FIELD_KEY,
     WIFI_CLIENT_COUNT_ICON,
     WIFI_MAC_FIELDS,
-    WIFI_STATUS_FIELD_KEYS,
-    ICON_WIFI_ACTIVE,
-    ICON_WIFI_INACTIVE,
     ConnectionStatusField,
     GatewayField,
     HardwareField,
 )
-from .util import build_selector
+from .util import build_selector, entity_object_id
 
 _LOGGER = logging.getLogger(__name__)
 ENTITY_ID_FORMAT = "sensor.{}"
@@ -121,20 +115,27 @@ async def async_setup_entry(
     device_info = data["device_info"]
 
     entities: list[SensorEntity] = [
-        GatewayFieldSensor(hass, coordinator, scraper, field, device_info) for field in FIELDS
+        GatewayFieldSensor(hass, coordinator, scraper, field, device_info)
+        for field in FIELDS
+        if field.key not in RETIRED_SENSOR_KEYS
     ]
     entities.append(LastRebootSensor(hass, coordinator, scraper, device_info))
-    entities.append(ModeSensor(hass, coordinator, scraper, device_info))
+    entities.append(IpAddressSensor(hass, entry.data[CONF_HOST], device_info))
 
     for field in CONNECTION_STATUS_FIELDS:
+        if field.key in RETIRED_SENSOR_KEYS:
+            continue
         entity_cls = NumericGatewayFieldSensor if field.numeric else GatewayFieldSensor
         entities.append(entity_cls(hass, coordinator_cs, scraper_cs, field, device_info))
 
     entities.append(WifiClientCountSensor(hass, coordinator_cs, scraper_cs, device_info))
 
     entities.extend(
-        GatewayFieldSensor(hass, coordinator_lan, scraper_lan, field, device_info)
+        (LanPortSpeedSensor if field.key in LAN_PORT_SPEED_FIELD_KEYS else GatewayFieldSensor)(
+            hass, coordinator_lan, scraper_lan, field, device_info
+        )
         for field in LAN_FIELDS
+        if field.key not in RETIRED_SENSOR_KEYS
     )
     entities.extend(
         GatewayFieldSensor(hass, coordinator_wifi, scraper_wifi, field, device_info)
@@ -182,18 +183,12 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
 
         self._attr_device_info = device_info
         self._attr_unique_id = f"xfinity_gateway_{field.key}"
+        self._attr_translation_key = field.key
         self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
         )
         self._field_key = field.key
-        self._attr_icon = STATIC_ICONS.get(
-            field.key,
-            ICON_INACTIVE
-            if field.key == CONNECTION_STATUS_FIELD_KEY
-            else ICON_WIFI_INACTIVE
-            if field.key in WIFI_STATUS_FIELD_KEYS
-            else None,
-        )
+        self._attr_icon = STATIC_ICONS.get(field.key)
         self._selector = build_selector(hass, field.name, field.select)
 
     def _update_sensor(self) -> None:
@@ -211,10 +206,6 @@ class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
             return
 
         self._attr_native_value = value
-        if self._field_key == CONNECTION_STATUS_FIELD_KEY:
-            self._attr_icon = ICON_ACTIVE if value == "Active" else ICON_INACTIVE
-        elif self._field_key in WIFI_STATUS_FIELD_KEYS:
-            self._attr_icon = ICON_WIFI_ACTIVE if value == "Active" else ICON_WIFI_INACTIVE
 
 
 class NumericGatewayFieldSensor(GatewayFieldSensor):
@@ -353,8 +344,9 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
         self._attr_device_info = device_info
         self._attr_icon = LAST_REBOOT_ICON
         self._attr_unique_id = "xfinity_gateway_last_reboot"
+        self._attr_translation_key = "last_reboot"
         self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
         )
         current_time_field = next(f for f in FIELDS if f.key == CURRENT_TIME_FIELD_KEY)
         uptime_field = next(f for f in FIELDS if f.key == SYSTEM_UPTIME_FIELD_KEY)
@@ -409,49 +401,6 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
         self._attr_native_value = gateway_now - duration
 
 
-class ModeSensor(MultiscrapeEntity, SensorEntity):
-    """Derived sensor: 'Bridge' or 'Router', from the same Bridge Message field
-    and detection text ("in bridge mode") as GatewayBridgeModeSensor's binary
-    sensor in binary_sensor.py - this just exposes it as a plain-text state
-    (with a matching bridge/router icon) instead of on/off.
-    """
-
-    _attr_has_entity_name = True
-    _attr_options = ["Bridge", "Router"]
-
-    def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
-        """Initialize the sensor."""
-        super().__init__(
-            hass, coordinator, scraper, "Mode", SensorDeviceClass.ENUM, False, None, None, {}
-        )
-
-        self._attr_device_info = device_info
-        self._attr_unique_id = "xfinity_gateway_mode"
-        self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
-        )
-        message_field = next(f for f in FIELDS if f.key == BRIDGE_MESSAGE_FIELD_KEY)
-        self._selector = build_selector(hass, message_field.name, message_field.select)
-
-    def _update_sensor(self) -> None:
-        """Update state from the scraper data."""
-        try:
-            value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
-            )
-        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
-            self.coordinator.request_reauth()
-            self._scrape_error = True
-            _LOGGER.warning(
-                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
-            )
-            return
-
-        is_bridge = bool(value) and "in bridge mode" in value.strip().lower()
-        self._attr_native_value = "Bridge" if is_bridge else "Router"
-        self._attr_icon = ICON_BRIDGE if is_bridge else ICON_ROUTER
-
-
 class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
     """Derived sensor: sum of the three per-band Wi-Fi client counts.
 
@@ -467,14 +416,15 @@ class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
     def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(
-            hass, coordinator, scraper, "Number of WiFi Clients", None, False, None, None, {}
+            hass, coordinator, scraper, "Number of Wi-Fi Clients", None, False, None, None, {}
         )
 
         self._attr_device_info = device_info
         self._attr_icon = WIFI_CLIENT_COUNT_ICON
         self._attr_unique_id = "xfinity_gateway_wifi_client_count"
+        self._attr_translation_key = "wifi_client_count"
         self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
         )
         band_keys = (
             WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY,
@@ -512,27 +462,31 @@ class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
 _LEADING_INT_RE = re.compile(r"\d+")
 
 
+def _parse_mbps(raw: str | None) -> int | None:
+    """"1000 Mbps" -> 1000; "Not Applicable" (port down) -> None."""
+    match = _LEADING_INT_RE.search(raw or "")
+    return int(match.group()) if match else None
+
+
 class LanSpeedSensor(MultiscrapeEntity, SensorEntity):
-    """Derived sensor: the highest of the four LAN ports' Connection Speed values.
+    """Derived sensor: the highest of the four LAN ports' speeds, in Mbit/s."""
 
-    Re-scrapes all four speed fields itself each cycle (same pattern as
-    WifiClientCountSensor/LastRebootSensor). Kept as the winning port's raw
-    string (e.g. "1000 Mbps"), not a bare number, matching this integration's
-    existing string-sensor style - only used numerically to pick the winner.
-    """
-
-    _attr_device_class = None
     _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = UnitOfDataRate.MEGABITS_PER_SECOND
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, hass: HomeAssistant, coordinator, scraper, device_info) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, coordinator, scraper, "LAN Speed", None, False, None, None, {})
+        super().__init__(
+            hass, coordinator, scraper, "LAN Speed", SensorDeviceClass.DATA_RATE, False, None, None, {}
+        )
 
         self._attr_device_info = device_info
         self._attr_icon = ICON_LAN_SPEED
         self._attr_unique_id = "xfinity_gateway_lan_speed"
+        self._attr_translation_key = "lan_speed"
         self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
         )
         speed_keys = (
             LAN_1_SPEED_FIELD_KEY,
@@ -564,16 +518,9 @@ class LanSpeedSensor(MultiscrapeEntity, SensorEntity):
             )
             return
 
-        best_raw = raw_values[0]
-        best_speed = -1
-        for raw in raw_values:
-            match = _LEADING_INT_RE.search(raw or "")
-            speed = int(match.group()) if match else 0
-            if speed > best_speed:
-                best_speed = speed
-                best_raw = raw
-
-        self._attr_native_value = best_raw
+        speeds = [_parse_mbps(raw) for raw in raw_values]
+        known = [speed for speed in speeds if speed is not None]
+        self._attr_native_value = max(known) if known else None
 
 
 class MacAddressSensor(MultiscrapeEntity, SensorEntity):
@@ -606,8 +553,9 @@ class MacAddressSensor(MultiscrapeEntity, SensorEntity):
         self._attr_device_info = device_info
         self._attr_icon = ICON_MAC_ADDRESS
         self._attr_unique_id = "xfinity_gateway_mac_address"
+        self._attr_translation_key = "mac_address"
         self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, self._attr_unique_id, hass=hass
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
         )
         self._coordinator_wifi = coordinator_wifi
         self._scraper_wifi = scraper_wifi
@@ -653,3 +601,52 @@ class MacAddressSensor(MultiscrapeEntity, SensorEntity):
             if candidate and candidate.strip():
                 self._attr_native_value = candidate
                 return
+
+
+class LanPortSpeedSensor(GatewayFieldSensor):
+    """One LAN port's speed in Mbit/s ("Not Applicable" when the port is down -> unknown)."""
+
+    _attr_native_unit_of_measurement = UnitOfDataRate.MEGABITS_PER_SECOND
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, field, device_info) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, coordinator, scraper, field, device_info)
+        self._attr_device_class = SensorDeviceClass.DATA_RATE
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data."""
+        super()._update_sensor()
+        if not self._scrape_error:
+            self._attr_native_value = _parse_mbps(self._attr_native_value)
+
+
+class IpAddressSensor(SensorEntity):
+    """The address Home Assistant reaches the gateway on (the configured host, resolved)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "IP Address"
+    _attr_translation_key = "ip_address"
+
+    def __init__(self, hass: HomeAssistant, host: str, device_info) -> None:
+        """Initialize the sensor."""
+        self._host = host
+        self._attr_device_info = device_info
+        self._attr_unique_id = "xfinity_gateway_ip_address"
+        self._attr_icon = STATIC_ICONS.get("ip_address")
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Resolve right away instead of waiting for the first poll."""
+        self.async_schedule_update_ha_state(True)
+
+    async def async_update(self) -> None:
+        """Resolve the configured host."""
+        try:
+            self._attr_native_value = await self.hass.async_add_executor_job(
+                socket.gethostbyname, self._host
+            )
+        except OSError:
+            self._attr_native_value = None

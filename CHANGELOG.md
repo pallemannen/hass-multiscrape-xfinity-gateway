@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Binary sensors WAN, LAN 1-4, and Wi-Fi 2.4/5/6 GHz.
+- An "IP Address" sensor: the address Home Assistant reaches the gateway on (the configured host, resolved).
+- Icons for every entity in `icons.json`, so disabled entities show icons too.
+
+### Changed
+
+- Connectivity now means WAN up and (any LAN port connected or any Wi-Fi band active); WAN alone is the new WAN sensor.
+- Names aligned with the AT&T Gateway integration: "WiFi" → "Wi-Fi", "LAN Connection" → "LAN", "IP Address"/"Netmask" → "LAN IP Address"/"LAN Netmask", "Hardware Revision" → "Hardware Version".
+- Entity IDs follow the entity name. Old automatic IDs are renamed at startup; IDs renamed by hand are left alone. Product Type moves to `sensor.xfinity_gateway_product_type` and Model to `sensor.xfinity_gateway_model`.
+- LAN Speed and LAN 1-4 Speed are numbers in Mbit/s (unknown when a port is down).
+- Binary sensors map only known gateway values to on/off; anything unexpected is unknown instead of off.
+- Icons match the AT&T Gateway integration (on/off variants for DHCP, Bridge Mode, LAN ports and Wi-Fi; netmask `mdi:slash-forward-box`).
+
+### Removed
+
+- Sensors that duplicated a binary sensor or another sensor: Connection Status (→ WAN), DHCP Client (IPv4/IPv6) and DHCP Server Status (→ the DHCP binary sensors), LAN 1-4 Connection Status and Wi-Fi 2.4/5/6 GHz Status (→ binary sensors), Mode and Bridge Message (→ Bridge Mode), LAN MAC Address (→ MAC Address). Their registry entries are removed at startup.
+
 ## [1.6.0] - 2026-08-24
 
 ### Added
