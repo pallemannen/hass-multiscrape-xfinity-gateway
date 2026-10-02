@@ -262,3 +262,26 @@ class ConnectivityTestSensor(RestoreEntity, BinarySensorEntity):
     def _handle_result(self, result) -> None:
         self._attr_is_on = result.connected
         self.async_write_ha_state()
+        self._attr_device_info = device_info
+        self._attr_unique_id = f"xfinity_gateway_{key}"
+        self._attr_translation_key = translation_key or key
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, entity_object_id(name), hass=hass
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Also update when the other pages this sensor reads are refreshed."""
+        await super().async_added_to_hass()
+        for coordinator in self._extra_coordinators:
+            self.async_on_remove(coordinator.async_add_listener(self._handle_coordinator_update))
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraped data."""
+        try:
+            self._attr_is_on = self._compute()
+        except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
+            self.coordinator.request_reauth()
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
+            )
