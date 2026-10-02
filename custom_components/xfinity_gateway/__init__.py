@@ -14,23 +14,29 @@ _async_process_config), and then forwards setup to the sensor/binary_sensor
 platforms via the config entry, the same way any other config-flow
 integration does.
 
-The gateway has five separate status pages we scrape: network_setup.jst (the
+The gateway has six separate status pages we scrape: network_setup.jst (the
 original set of fields), connection_status.jst (LAN/Wi-Fi summary fields),
 lan.jst (per-port LAN Ethernet status/speed/MAC), wifi.jst (per-band Wi-Fi
-MAC addresses) and hardware.jst (processor speed, DRAM/Flash memory usage).
-Rather than modify multiscrape's own coordinator (which only ever fetches a
-single resource per cycle), this builds five independent scraper/coordinator
-pairs, one per page - all sharing the same authenticated HttpSession (and
-thus the same login/cookies) as the first, so this doesn't multiply the
-login load on the gateway. Five independent multiscrape coordinators, one
-shared session.
+MAC addresses), hardware.jst (processor speed, DRAM/Flash memory usage) and
+wireless_network_configuration.jst (SSIDs, radio on/off). Rather than modify
+multiscrape's own coordinator (which only ever fetches a single resource per
+cycle), this builds six independent scraper/coordinator pairs, one per page -
+all sharing the same authenticated HttpSession (and thus the same
+login/cookies) as the first, so this doesn't multiply the login load on the
+gateway. Actions (api.py) post through that same session.
 """
 from __future__ import annotations
 
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_SCAN_INTERVAL, EVENT_HOMEASSISTANT_STOP, Platform
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_SCAN_INTERVAL,
+    CONF_USERNAME,
+    EVENT_HOMEASSISTANT_STOP,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -42,6 +48,7 @@ from custom_components.multiscrape.file import create_file_manager
 from custom_components.multiscrape.http_session import create_http_session
 from custom_components.multiscrape.scraper import create_scraper
 
+from .api import GatewayClient
 from .const import DOMAIN, RETIRED_SENSOR_KEYS
 from .device import build_device_info
 from .util import (
@@ -50,17 +57,25 @@ from .util import (
     build_lan_conf,
     build_scraper_conf,
     build_wifi_conf,
+    build_wireless_conf,
     entity_object_id,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.SWITCH,
+    Platform.SELECT,
+    Platform.BUTTON,
+]
 SCRAPER_CONFIG_NAME = "xfinity_gateway"
 CONNECTION_STATUS_CONFIG_NAME = "xfinity_gateway_connection_status"
 LAN_CONFIG_NAME = "xfinity_gateway_lan"
 WIFI_CONFIG_NAME = "xfinity_gateway_wifi"
 HARDWARE_CONFIG_NAME = "xfinity_gateway_hardware"
+WIRELESS_CONFIG_NAME = "xfinity_gateway_wireless"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -144,6 +159,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await coordinator_hardware.async_config_entry_first_refresh()
 
+    # Sixth page (wireless_network_configuration.jst), same shared session.
+    wireless_conf = build_wireless_conf(conf, scraper_conf[CONF_SCAN_INTERVAL])
+    scraper_wireless = create_scraper(WIRELESS_CONFIG_NAME, wireless_conf, hass, file_manager)
+    request_manager_wireless = create_content_request_manager(
+        WIRELESS_CONFIG_NAME, wireless_conf, hass, session
+    )
+    coordinator_wireless = create_multiscrape_coordinator(
+        WIRELESS_CONFIG_NAME,
+        wireless_conf,
+        hass,
+        request_manager_wireless,
+        file_manager,
+        scraper_wireless,
+    )
+    await coordinator_wireless.async_config_entry_first_refresh()
+
     async def _shutdown_session(_event, _session=session):
         await _session.async_close()
 
@@ -165,6 +196,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "scraper_wifi": scraper_wifi,
         "coordinator_hardware": coordinator_hardware,
         "scraper_hardware": scraper_hardware,
+        "coordinator_wireless": coordinator_wireless,
+        "scraper_wireless": scraper_wireless,
+        "client": GatewayClient(session, conf[CONF_HOST], conf[CONF_USERNAME]),
         "session": session,
     }
 

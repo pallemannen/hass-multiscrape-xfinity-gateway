@@ -343,6 +343,55 @@ HARDWARE_FIELDS: tuple[HardwareField, ...] = (
     ),
 )
 
+# network_setup.jst "CM Error Codewords" table: one cell per downstream channel,
+# summed per row. Row 1 is the channel IDs.
+_CODEWORD_ROWS = '.module.netFlow:has(td:-soup-contains("CM Error Codewords")) tbody tr:nth-of-type({}) td'
+CODEWORD_FIELDS: tuple[GatewayField, ...] = (
+    GatewayField("unerrored_codewords", "Unerrored Codewords", _CODEWORD_ROWS.format(2)),
+    GatewayField("correctable_codewords", "Correctable Codewords", _CODEWORD_ROWS.format(3)),
+    GatewayField("uncorrectable_codewords", "Uncorrectable Codewords", _CODEWORD_ROWS.format(4)),
+)
+
+# wireless_network_configuration.jst: the private network table, one row per band.
+WIRELESS_PATH = "wireless_network_configuration.jst"
+WIFI_SSID_FIELDS: tuple[ConnectionStatusField, ...] = (
+    ConnectionStatusField("wifi_24ghz_ssid", "Wi-Fi 2.4 GHz SSID", "tr:has(#wifieditbutt1) .wifi_ntwrk"),
+    ConnectionStatusField("wifi_5ghz_ssid", "Wi-Fi 5 GHz SSID", "tr:has(#wifieditbutt2) .wifi_ntwrk"),
+    ConnectionStatusField("wifi_6ghz_ssid", "Wi-Fi 6 GHz SSID", "tr:has(#wifieditbutt3) .wifi_ntwrk"),
+)
+# The radio and WPS settings are only in the page's script, e.g. `var G_radio_enable1 = true;`.
+WIRELESS_SCRIPT_SELECTOR = 'script:-soup-contains("G_radio_enable")'
+# (key, name, script variable, ssid_number the gateway expects when saving)
+WIFI_RADIOS = (
+    ("wifi_24ghz", "Wi-Fi 2.4 GHz", "G_radio_enable", "1"),
+    ("wifi_5ghz", "Wi-Fi 5 GHz", "G_radio_enable1", "2"),
+    ("wifi_6ghz", "Wi-Fi 6 GHz", "G_radio_enable3", "17"),
+)
+# Wi-Fi Mode select: option -> (2.4 GHz, 5 GHz, 6 GHz) radio settings.
+WIFI_MODES: dict[str, tuple[bool, bool, bool]] = {
+    "off": (False, False, False),
+    "wifi_24ghz": (True, False, False),
+    "wifi_5ghz": (False, True, False),
+    "wifi_6ghz": (False, False, True),
+    "wifi_24ghz_5ghz": (True, True, False),
+    "wifi_24ghz_6ghz": (True, False, True),
+    "wifi_5ghz_6ghz": (False, True, True),
+    "all": (True, True, True),
+}
+# Seconds the gateway needs to apply a Wi-Fi change before the page shows it.
+WIFI_SAVE_DELAY = 5
+
+# restore_reboot.jst buttons: (button id, what it resets).
+RESTORE_REBOOT_PATH = "restore_reboot.jst"
+RESTART = ("btn1", "Device")
+RESTART_WIFI_MODULE = ("btn2", "Wifi")
+
+# network_diagnostic_tools.jst "Test Connectivity", with the page's defaults.
+DIAGNOSTICS_PATH = "network_diagnostic_tools.jst"
+CONNECTIVITY_TEST_DESTINATION = "www.comcast.net"
+CONNECTIVITY_TEST_COUNT = 4
+SIGNAL_CONNECTIVITY_TEST = "xfinity_gateway_connectivity_test_{}"
+
 PROCESSOR_SPEED_FIELD_KEY = "processor_speed"
 MEMORY_FIELD_KEYS = frozenset(
     {
@@ -474,4 +523,11 @@ STATIC_ICONS: dict[str, str] = {
     "flash_total_memory": "mdi:harddisk",
     "flash_used_memory": "mdi:harddisk",
     "flash_available_memory": "mdi:harddisk",
+    "unerrored_codewords": "mdi:download-network-outline",
+    "correctable_codewords": "mdi:download-network-outline",
+    "uncorrectable_codewords": "mdi:download-network-outline",
+    "wifi_24ghz_ssid": "mdi:access-point-network",
+    "wifi_5ghz_ssid": "mdi:access-point-network",
+    "wifi_6ghz_ssid": "mdi:access-point-network",
+    "connectivity_test_packet_loss": "mdi:lan-pending",
 }

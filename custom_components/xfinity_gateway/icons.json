@@ -123,6 +123,27 @@
       },
       "ip_address": {
         "default": "mdi:ip-network-outline"
+      },
+      "unerrored_codewords": {
+        "default": "mdi:download-network-outline"
+      },
+      "correctable_codewords": {
+        "default": "mdi:download-network-outline"
+      },
+      "uncorrectable_codewords": {
+        "default": "mdi:download-network-outline"
+      },
+      "wifi_24ghz_ssid": {
+        "default": "mdi:access-point-network"
+      },
+      "wifi_5ghz_ssid": {
+        "default": "mdi:access-point-network"
+      },
+      "wifi_6ghz_ssid": {
+        "default": "mdi:access-point-network"
+      },
+      "connectivity_test_packet_loss": {
+        "default": "mdi:lan-pending"
       }
     },
     "binary_sensor": {
@@ -212,6 +233,62 @@
           "on": "mdi:bridge",
           "off": "mdi:router-network-wireless"
         }
+      },
+      "internet_connectivity_test": {
+        "default": "mdi:close-network-outline",
+        "state": {
+          "on": "mdi:check-network-outline",
+          "off": "mdi:close-network-outline"
+        }
+      }
+    },
+    "switch": {
+      "wifi_24ghz": {
+        "default": "mdi:wifi-off",
+        "state": {
+          "on": "mdi:wifi",
+          "off": "mdi:wifi-off"
+        }
+      },
+      "wifi_5ghz": {
+        "default": "mdi:wifi-off",
+        "state": {
+          "on": "mdi:wifi",
+          "off": "mdi:wifi-off"
+        }
+      },
+      "wifi_6ghz": {
+        "default": "mdi:wifi-off",
+        "state": {
+          "on": "mdi:wifi",
+          "off": "mdi:wifi-off"
+        }
+      }
+    },
+    "select": {
+      "wifi_mode": {
+        "default": "mdi:wifi-cog",
+        "state": {
+          "off": "mdi:wifi-off",
+          "wifi_24ghz": "mdi:wifi",
+          "wifi_5ghz": "mdi:wifi",
+          "wifi_6ghz": "mdi:wifi",
+          "wifi_24ghz_5ghz": "mdi:wifi",
+          "wifi_24ghz_6ghz": "mdi:wifi",
+          "wifi_5ghz_6ghz": "mdi:wifi",
+          "all": "mdi:wifi"
+        }
+      }
+    },
+    "button": {
+      "test_connectivity": {
+        "default": "mdi:lan-check"
+      },
+      "restart_wifi_module": {
+        "default": "mdi:wifi-refresh"
+      },
+      "restart": {
+        "default": "mdi:restart"
       }
     }
   }

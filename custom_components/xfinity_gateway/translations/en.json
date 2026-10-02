@@ -45,6 +45,20 @@
           "off": "Not in Bridge Mode"
         }
       }
+    },
+    "select": {
+      "wifi_mode": {
+        "state": {
+          "off": "Off",
+          "wifi_24ghz": "2.4 GHz",
+          "wifi_5ghz": "5 GHz",
+          "wifi_6ghz": "6 GHz",
+          "wifi_24ghz_5ghz": "2.4 + 5 GHz",
+          "wifi_24ghz_6ghz": "2.4 + 6 GHz",
+          "wifi_5ghz_6ghz": "5 + 6 GHz",
+          "all": "All"
+        }
+      }
     }
   }
 }
