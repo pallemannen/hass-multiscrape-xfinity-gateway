@@ -450,6 +450,9 @@ RETIRED_SENSOR_KEYS = frozenset(
         *(f"lan_{port}_connection_status" for port in range(1, 5)),
     }
 )
+# Renamed entities: (domain, old key, new key). The registry entry moves to the
+# new unique ID, and to the new entity ID if it still had the automatic one.
+RENAMED_KEYS = (("binary_sensor", "internet_connectivity_test", "connectivity_test"),)
 LAN_PORT_SPEED_FIELD_KEYS = frozenset(f"lan_{port}_speed" for port in range(1, 5))
 
 # Format the gateway reports its own "Current Time" field in, e.g. "2026-08-14 09:12:03".

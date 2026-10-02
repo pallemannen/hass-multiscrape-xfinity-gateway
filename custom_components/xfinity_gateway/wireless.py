@@ -12,11 +12,11 @@ from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.template import Template
 
 from custom_components.multiscrape.const import CONF_SELECT
-from custom_components.multiscrape.entity import MultiscrapeEntity
 from custom_components.multiscrape.selector import Selector
 
 from .api import GatewayClient, GatewayError
 from .const import WIFI_RADIOS, WIFI_SAVE_DELAY, WIRELESS_SCRIPT_SELECTOR
+from .entity import XfinityEntity
 from .util import entity_object_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ def _variable(script: str, name: str) -> str | None:
     return match.group(1).strip('"') if match else None
 
 
-class WirelessEntity(MultiscrapeEntity):
+class WirelessEntity(XfinityEntity):
     """Base for entities that read the radio settings and change them."""
 
     _attr_has_entity_name = True
@@ -67,6 +67,11 @@ class WirelessEntity(MultiscrapeEntity):
 
     def _update_state(self) -> None:
         raise NotImplementedError
+
+    @property
+    def available(self) -> bool:
+        """Unavailable in bridge mode: the gateway's Wi-Fi is off then, whatever the settings say."""
+        return super().available and _variable(self._script, "isBridge") != "bridge-static"
 
     def radio(self, variable: str) -> bool | None:
         """Return whether a radio is on, from its script variable."""

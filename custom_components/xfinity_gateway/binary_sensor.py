@@ -15,7 +15,6 @@ from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from custom_components.multiscrape.entity import MultiscrapeEntity
 
 from .const import (
     BRIDGE_MESSAGE_FIELD_KEY,
@@ -32,6 +31,7 @@ from .const import (
     WIFI_5GHZ_STATUS_FIELD_KEY,
     WIFI_6GHZ_STATUS_FIELD_KEY,
 )
+from .entity import XfinityEntity
 from .util import build_selector, entity_object_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -178,7 +178,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class DerivedSensor(MultiscrapeEntity, BinarySensorEntity):
+class DerivedSensor(XfinityEntity, BinarySensorEntity):
     """A binary sensor computed from the latest page data (icons from icons.json).
 
     device_class goes through MultiscrapeEntity's constructor: it overwrites a
@@ -233,8 +233,8 @@ class ConnectivityTestSensor(RestoreEntity, BinarySensorEntity):
     """Result of the last Test Connectivity run (see button.py)."""
 
     _attr_has_entity_name = True
-    _attr_name = "Internet Connectivity Test"
-    _attr_translation_key = "internet_connectivity_test"
+    _attr_name = "Connectivity Test"
+    _attr_translation_key = "connectivity_test"
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_should_poll = False
 
@@ -242,7 +242,7 @@ class ConnectivityTestSensor(RestoreEntity, BinarySensorEntity):
         """Initialize the sensor."""
         self._entry_id = entry_id
         self._attr_device_info = device_info
-        self._attr_unique_id = "xfinity_gateway_internet_connectivity_test"
+        self._attr_unique_id = "xfinity_gateway_connectivity_test"
         self.entity_id = async_generate_entity_id(
             ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
         )

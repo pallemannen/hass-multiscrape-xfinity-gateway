@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- "Internet Connectivity Test" is now "Connectivity Test", matching Connectivity Test Packet Loss. Its entity ID moves to `binary_sensor.xfinity_gateway_connectivity_test` unless renamed by hand; history is kept.
+- Wi-Fi switches and Wi-Fi Mode are unavailable in bridge mode, where the gateway's Wi-Fi is off whatever the settings say.
+
+### Fixed
+
+- Switches, Wi-Fi Mode and binary sensors were unknown for up to a scan interval after startup or reload; all entities now take their state from the first fetch right away.
+
 ## [1.7.0] - 2026-10-02
 
 ### Added
