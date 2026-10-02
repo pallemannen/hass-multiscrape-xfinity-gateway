@@ -32,7 +32,6 @@ from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from custom_components.multiscrape.entity import MultiscrapeEntity
 
 from .const import (
     CODEWORD_FIELDS,
@@ -71,6 +70,7 @@ from .const import (
     GatewayField,
     HardwareField,
 )
+from .entity import XfinityEntity
 from .util import build_list_selector, build_selector, entity_object_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -180,7 +180,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class GatewayFieldSensor(MultiscrapeEntity, SensorEntity):
+class GatewayFieldSensor(XfinityEntity, SensorEntity):
     """A sensor reading a single field off a gateway status page.
 
     Works for GatewayField (network_setup.jst), ConnectionStatusField
@@ -344,7 +344,7 @@ class ProcessorSpeedSensor(GatewayFieldSensor):
         self._attr_native_value = int(match.group())
 
 
-class LastRebootSensor(MultiscrapeEntity, SensorEntity):
+class LastRebootSensor(XfinityEntity, SensorEntity):
     """Derived timestamp sensor: the gateway's own reported current time minus its
     reported system uptime.
 
@@ -421,7 +421,7 @@ class LastRebootSensor(MultiscrapeEntity, SensorEntity):
         self._attr_native_value = gateway_now - duration
 
 
-class WifiClientCountSensor(MultiscrapeEntity, SensorEntity):
+class WifiClientCountSensor(XfinityEntity, SensorEntity):
     """Derived sensor: sum of the three per-band Wi-Fi client counts.
 
     Re-scrapes all three band selectors itself each cycle, the same way
@@ -488,7 +488,7 @@ def _parse_mbps(raw: str | None) -> int | None:
     return int(match.group()) if match else None
 
 
-class LanSpeedSensor(MultiscrapeEntity, SensorEntity):
+class LanSpeedSensor(XfinityEntity, SensorEntity):
     """Derived sensor: the highest of the four LAN ports' speeds, in Mbit/s."""
 
     _attr_has_entity_name = True
@@ -543,7 +543,7 @@ class LanSpeedSensor(MultiscrapeEntity, SensorEntity):
         self._attr_native_value = max(known) if known else None
 
 
-class MacAddressSensor(MultiscrapeEntity, SensorEntity):
+class MacAddressSensor(XfinityEntity, SensorEntity):
     """Derived sensor: the gateway's "effective" MAC address.
 
     Priority order: LAN, then Wi-Fi 2.4/5/6 GHz - the first one that scrapes

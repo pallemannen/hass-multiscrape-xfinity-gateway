@@ -234,7 +234,7 @@
           "off": "mdi:router-network-wireless"
         }
       },
-      "internet_connectivity_test": {
+      "connectivity_test": {
         "default": "mdi:close-network-outline",
         "state": {
           "on": "mdi:check-network-outline",

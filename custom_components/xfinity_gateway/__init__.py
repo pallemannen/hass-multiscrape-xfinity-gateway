@@ -49,7 +49,7 @@ from custom_components.multiscrape.http_session import create_http_session
 from custom_components.multiscrape.scraper import create_scraper
 
 from .api import GatewayClient
-from .const import DOMAIN, RETIRED_SENSOR_KEYS
+from .const import DOMAIN, RENAMED_KEYS, RETIRED_SENSOR_KEYS
 from .device import build_device_info
 from .util import (
     build_connection_status_conf,
@@ -202,10 +202,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "session": session,
     }
 
+    _async_rename_entities(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _async_migrate_entities(hass, entry)
 
     return True
+
+
+def _async_rename_entities(hass: HomeAssistant) -> None:
+    """Move renamed entities to their new unique ID (and automatic entity ID), keeping history."""
+    registry = er.async_get(hass)
+    for domain, old, new in RENAMED_KEYS:
+        entity_id = registry.async_get_entity_id(domain, DOMAIN, f"xfinity_gateway_{old}")
+        if entity_id is None:
+            continue
+        changes = {"new_unique_id": f"xfinity_gateway_{new}"}
+        new_entity_id = f"{domain}.xfinity_gateway_{new}"
+        if entity_id == f"{domain}.xfinity_gateway_{old}" and not registry.async_get(new_entity_id):
+            changes["new_entity_id"] = new_entity_id
+        registry.async_update_entity(entity_id, **changes)
 
 
 def _async_migrate_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:

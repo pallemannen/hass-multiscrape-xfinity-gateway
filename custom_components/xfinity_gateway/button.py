@@ -51,7 +51,7 @@ class GatewayButton(ButtonEntity):
 
 
 class TestConnectivityButton(GatewayButton):
-    """Pings from the gateway; the result goes to Internet Connectivity Test and Packet Loss."""
+    """Pings from the gateway; the result goes to Connectivity Test and Connectivity Test Packet Loss."""
 
     _attr_name = "Test Connectivity"
 
