@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-02
+
 ### Changed
 
 - "Internet Connectivity Test" is now "Connectivity Test", matching Connectivity Test Packet Loss. Its entity ID moves to `binary_sensor.xfinity_gateway_connectivity_test` unless renamed by hand; history is kept.
