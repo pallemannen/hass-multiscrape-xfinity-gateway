@@ -9,9 +9,11 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from custom_components.multiscrape.entity import MultiscrapeEntity
 
@@ -25,6 +27,7 @@ from .const import (
     FIELDS,
     LAN_DHCP_SERVER_STATUS_FIELD_KEY,
     LAN_FIELDS,
+    SIGNAL_CONNECTIVITY_TEST,
     WIFI_24GHZ_STATUS_FIELD_KEY,
     WIFI_5GHZ_STATUS_FIELD_KEY,
     WIFI_6GHZ_STATUS_FIELD_KEY,
@@ -171,6 +174,7 @@ async def async_setup_entry(
         DerivedSensor(hass, *main, device_info, "bridge_mode", "Bridge Mode", bridge_mode,
                       translation_key="bridge_mode")
     )
+    entities.append(ConnectivityTestSensor(hass, entry.entry_id, device_info))
     async_add_entities(entities)
 
 
@@ -223,3 +227,38 @@ class DerivedSensor(MultiscrapeEntity, BinarySensorEntity):
             _LOGGER.warning(
                 "%s # Unable to scrape %s: %s", self.scraper.name, self._name, exception
             )
+
+
+class ConnectivityTestSensor(RestoreEntity, BinarySensorEntity):
+    """Result of the last Test Connectivity run (see button.py)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Internet Connectivity Test"
+    _attr_translation_key = "internet_connectivity_test"
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, entry_id: str, device_info) -> None:
+        """Initialize the sensor."""
+        self._entry_id = entry_id
+        self._attr_device_info = device_info
+        self._attr_unique_id = "xfinity_gateway_internet_connectivity_test"
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last result and listen for new ones."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is not None and last.state in ("on", "off"):
+            self._attr_is_on = last.state == "on"
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SIGNAL_CONNECTIVITY_TEST.format(self._entry_id), self._handle_result
+            )
+        )
+
+    @callback
+    def _handle_result(self, result) -> None:
+        self._attr_is_on = result.connected
+        self.async_write_ha_state()

@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Binary sensors WAN, LAN 1-4, and Wi-Fi 2.4/5/6 GHz.
 - An "IP Address" sensor: the address Home Assistant reaches the gateway on (the configured host, resolved).
 - Icons for every entity in `icons.json`, so disabled entities show icons too.
+- Wi-Fi 2.4/5/6 GHz switches and a Wi-Fi Mode select (which radios are on).
+- Wi-Fi 2.4/5/6 GHz SSID sensors.
+- Unerrored, Correctable and Uncorrectable Codewords sensors, summed over the downstream channels.
+- Test Connectivity button, with Internet Connectivity Test and Connectivity Test Packet Loss for the result.
+- Restart Wi-Fi Module and Restart buttons, disabled by default.
 
 ### Changed
 

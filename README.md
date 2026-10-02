@@ -32,11 +32,22 @@ No YAML editing or manually edited config files needed - everything is set up th
 - MAC address, IP address, LAN IP address and netmask, external IPv4/IPv6 addresses and default gateways, DNS servers
 - LAN speed per port, Wi-Fi MAC addresses, number of LAN and Wi-Fi clients
 - Manufacturer, model, product type, software/hardware version, serial number, processor speed, memory
+- Wi-Fi 2.4/5/6 GHz SSID
+- Unerrored, Correctable and Uncorrectable Codewords (summed over the downstream channels)
+- Connectivity Test Packet Loss
 
 **Binary sensors**
 - Connectivity: WAN up and (any LAN port connected or any Wi-Fi band active)
 - WAN, LAN (any port), LAN 1-4, Wi-Fi (any band), Wi-Fi 2.4/5/6 GHz
 - DHCP Client, DHCPv6 Client, DHCP Server, Bridge Mode
+- Internet Connectivity Test
+
+**Controls**
+- Wi-Fi 2.4/5/6 GHz switches, and a Wi-Fi Mode select for which radios are on
+- Test Connectivity: the gateway pings `www.comcast.net` 4 times; the result goes to Internet Connectivity Test and Connectivity Test Packet Loss
+- Restart Wi-Fi Module and Restart (disabled by default)
+
+In bridge mode the gateway's own Wi-Fi is off whatever the switches say; the switches show the radio setting, the Wi-Fi binary sensors the actual state.
 
 All of these are created automatically when you set up the integration - nothing extra to configure. Every entity is grouped under a single device (manufacturer/model/serial/version read from the gateway itself).
 

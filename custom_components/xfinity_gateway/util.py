@@ -24,12 +24,15 @@ from custom_components.multiscrape.const import (
     CONF_FORM_SUBMIT,
     CONF_FORM_SUBMIT_ONCE,
     CONF_PARSER,
+    CONF_SEPARATOR,
     DEFAULT_PARSER,
+    DEFAULT_SEPARATOR,
 )
 from custom_components.multiscrape.const import CONF_SELECT as MS_CONF_SELECT
+from custom_components.multiscrape.const import CONF_SELECT_LIST
 from custom_components.multiscrape.selector import Selector
 
-from .const import VALUE_TEMPLATE_STRIP
+from .const import VALUE_TEMPLATE_STRIP, WIRELESS_PATH
 
 
 def build_scraper_conf(conf: ConfigType) -> ConfigType:
@@ -43,6 +46,7 @@ def build_scraper_conf(conf: ConfigType) -> ConfigType:
         CONF_RESOURCE: f"http://{host}/network_setup.jst",
         CONF_SCAN_INTERVAL: timedelta(seconds=conf[CONF_SCAN_INTERVAL]),
         CONF_PARSER: DEFAULT_PARSER,
+        CONF_SEPARATOR: DEFAULT_SEPARATOR,
         CONF_FORM_SUBMIT: {
             CONF_RESOURCE: f"http://{host}/",
             CONF_FORM_SELECT: "#pageForm",
@@ -115,6 +119,20 @@ def build_hardware_conf(conf: ConfigType, scan_interval: timedelta) -> ConfigTyp
     }
 
 
+def build_wireless_conf(conf: ConfigType, scan_interval: timedelta) -> ConfigType:
+    """Build a minimal multiscrape-shaped conf for fetching wireless_network_configuration.jst.
+
+    Same reasoning as build_connection_status_conf: fetched through the
+    already-authenticated shared HttpSession, no form_submit needed.
+    """
+    host = conf[CONF_HOST]
+    return {
+        CONF_RESOURCE: f"http://{host}/{WIRELESS_PATH}",
+        CONF_SCAN_INTERVAL: scan_interval,
+        CONF_PARSER: DEFAULT_PARSER,
+    }
+
+
 def build_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
     """Build a multiscrape Selector for a single CSS-selected, stripped-text field."""
     return Selector(
@@ -125,6 +143,11 @@ def build_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
             CONF_VALUE_TEMPLATE: Template(VALUE_TEMPLATE_STRIP, hass),
         },
     )
+
+
+def build_list_selector(hass: HomeAssistant, name: str, select: str) -> Selector:
+    """Build a multiscrape Selector returning every match's text, comma-separated."""
+    return Selector(hass, {CONF_NAME: name, CONF_SELECT_LIST: Template(select, hass)})
 
 
 # Entity IDs follow the entity name (shared rule with the AT&T Gateway

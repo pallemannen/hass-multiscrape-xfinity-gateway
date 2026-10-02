@@ -13,13 +13,21 @@ import socket
 from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, UnitOfDataRate, UnitOfFrequency, UnitOfInformation
-from homeassistant.core import HomeAssistant
+from homeassistant.const import (
+    CONF_HOST,
+    PERCENTAGE,
+    UnitOfDataRate,
+    UnitOfFrequency,
+    UnitOfInformation,
+)
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
@@ -27,6 +35,7 @@ from homeassistant.util import dt as dt_util
 from custom_components.multiscrape.entity import MultiscrapeEntity
 
 from .const import (
+    CODEWORD_FIELDS,
     CONNECTION_STATUS_FIELDS,
     CURRENT_TIME_FIELD_KEY,
     CURRENT_TIME_FORMAT,
@@ -46,6 +55,7 @@ from .const import (
     MEMORY_FIELD_KEYS,
     PROCESSOR_SPEED_FIELD_KEY,
     RETIRED_SENSOR_KEYS,
+    SIGNAL_CONNECTIVITY_TEST,
     STATIC_ICONS,
     SYSTEM_UPTIME_FIELD_KEY,
     WIFI_24GHZ_CLIENT_COUNT_FIELD_KEY,
@@ -56,11 +66,12 @@ from .const import (
     WIFI_6GHZ_MAC_ADDRESS_FIELD_KEY,
     WIFI_CLIENT_COUNT_ICON,
     WIFI_MAC_FIELDS,
+    WIFI_SSID_FIELDS,
     ConnectionStatusField,
     GatewayField,
     HardwareField,
 )
-from .util import build_selector, entity_object_id
+from .util import build_list_selector, build_selector, entity_object_id
 
 _LOGGER = logging.getLogger(__name__)
 ENTITY_ID_FORMAT = "sensor.{}"
@@ -120,6 +131,9 @@ async def async_setup_entry(
         if field.key not in RETIRED_SENSOR_KEYS
     ]
     entities.append(LastRebootSensor(hass, coordinator, scraper, device_info))
+    entities.extend(
+        CodewordSensor(hass, coordinator, scraper, field, device_info) for field in CODEWORD_FIELDS
+    )
     entities.append(IpAddressSensor(hass, entry.data[CONF_HOST], device_info))
 
     for field in CONNECTION_STATUS_FIELDS:
@@ -156,6 +170,12 @@ async def async_setup_entry(
         else:
             entity_cls = GatewayFieldSensor
         entities.append(entity_cls(hass, coordinator_hardware, scraper_hardware, field, device_info))
+
+    entities.extend(
+        GatewayFieldSensor(hass, data["coordinator_wireless"], data["scraper_wireless"], field, device_info)
+        for field in WIFI_SSID_FIELDS
+    )
+    entities.append(ConnectivityTestPacketLossSensor(hass, entry.entry_id, device_info))
 
     async_add_entities(entities)
 
@@ -650,3 +670,68 @@ class IpAddressSensor(SensorEntity):
             )
         except OSError:
             self._attr_native_value = None
+
+
+class CodewordSensor(GatewayFieldSensor):
+    """A downstream codeword counter, summed over all channels."""
+
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, hass: HomeAssistant, coordinator, scraper, field, device_info) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, coordinator, scraper, field, device_info)
+        self._selector = build_list_selector(hass, field.name, field.select)
+
+    def _update_sensor(self) -> None:
+        """Update state from the scraper data."""
+        super()._update_sensor()
+        if self._scrape_error:
+            return
+        try:
+            self._attr_native_value = sum(int(v) for v in str(self._attr_native_value).split(","))
+        except ValueError:
+            self._scrape_error = True
+            _LOGGER.warning(
+                "%s # Could not parse %s (raw value %r)",
+                self.scraper.name,
+                self._name,
+                self._attr_native_value,
+            )
+            self._attr_native_value = None
+
+
+class ConnectivityTestPacketLossSensor(RestoreSensor):
+    """Packet loss of the last Test Connectivity run (see button.py)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Connectivity Test Packet Loss"
+    _attr_translation_key = "connectivity_test_packet_loss"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, entry_id: str, device_info) -> None:
+        """Initialize the sensor."""
+        self._entry_id = entry_id
+        self._attr_device_info = device_info
+        self._attr_unique_id = "xfinity_gateway_connectivity_test_packet_loss"
+        self._attr_icon = STATIC_ICONS.get("connectivity_test_packet_loss")
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT, entity_object_id(self._attr_name), hass=hass
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last result and listen for new ones."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_sensor_data()) is not None:
+            self._attr_native_value = last.native_value
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SIGNAL_CONNECTIVITY_TEST.format(self._entry_id), self._handle_result
+            )
+        )
+
+    @callback
+    def _handle_result(self, result) -> None:
+        self._attr_native_value = result.packet_loss
+        self.async_write_ha_state()
