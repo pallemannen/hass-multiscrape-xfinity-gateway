@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-10-06
+
+### Fixed
+
+- DRAM/Flash memory sensors now use MiB as native unit. The gateway reports binary megabytes, so MB was wrong by ~5%. Home Assistant may ask once how to handle the long-term statistics unit change.
+
 ## [1.7.1] - 2026-10-02
 
 ### Changed

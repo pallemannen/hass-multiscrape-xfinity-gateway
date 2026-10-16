@@ -273,12 +273,14 @@ class NumericGatewayFieldSensor(GatewayFieldSensor):
 class MemoryFieldSensor(GatewayFieldSensor):
     """A GatewayFieldSensor whose value is a "<n> MB" memory size (DRAM/Flash usage).
 
+    The gateway's "MB" is binary (MiB), so the native unit is MEBIBYTES.
+
     Uses _LEADING_INT_RE (defined below, alongside LanSpeedSensor) - safe to
     reference here since it's resolved at call time, not class-definition time.
     """
 
     _attr_device_class = SensorDeviceClass.DATA_SIZE
-    _attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
+    _attr_native_unit_of_measurement = UnitOfInformation.MEBIBYTES
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def _update_sensor(self) -> None:
