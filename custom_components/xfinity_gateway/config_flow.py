@@ -32,13 +32,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 from homeassistant.loader import IntegrationNotFound, async_get_integration
 
-from bs4 import BeautifulSoup
-
-from custom_components.multiscrape.coordinator import create_content_request_manager
-from custom_components.multiscrape.http_session import create_http_session
-
+from . import import_multiscrape_modules
 from .const import CONF_NAME, DEFAULT_HOST, DEFAULT_NAME, DEFAULT_SCAN_INTERVAL, DOMAIN
-from .util import build_scraper_conf
 
 # Fingerprint of the login page itself (see the module docstring) - present
 # only when we're still looking at the login page, i.e. auth didn't take.
@@ -77,6 +72,16 @@ async def _async_validate_input(hass: HomeAssistant, data: dict[str, Any]) -> No
     so this also scrapes the Connection Status field from the response and
     treats "selector didn't match anything" as InvalidAuth too.
     """
+    # Only reached after the multiscrape installation check in the step.
+    await hass.async_add_import_executor_job(import_multiscrape_modules)
+    from bs4 import BeautifulSoup  # noqa: PLC0415 - installed with multiscrape
+    from custom_components.multiscrape.coordinator import (  # noqa: PLC0415
+        create_content_request_manager,
+    )
+    from custom_components.multiscrape.http_session import create_http_session  # noqa: PLC0415
+
+    from .util import build_scraper_conf  # noqa: PLC0415
+
     scraper_conf = build_scraper_conf(data)
     session = create_http_session(DOMAIN, scraper_conf, hass, None)
     try:
