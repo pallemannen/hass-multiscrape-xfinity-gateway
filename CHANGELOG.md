@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-10-19
+
+### Fixed
+
+- Without multiscrape installed, setup now shows the "multiscrape is not installed" message instead of a generic error. Nothing that needs multiscrape (including beautifulsoup4, which comes with it) is imported until the installation check has passed.
+
+### Changed
+
+- The HACS validation no longer ignores the brands check; the in-tree `brand/` icons satisfy it.
+
 ## [1.7.2] - 2026-10-06
 
 ### Fixed

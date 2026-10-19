@@ -27,6 +27,7 @@ gateway. Actions (api.py) post through that same session.
 """
 from __future__ import annotations
 
+import importlib
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -40,26 +41,8 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from custom_components.multiscrape.coordinator import (
-    create_content_request_manager,
-    create_multiscrape_coordinator,
-)
-from custom_components.multiscrape.file import create_file_manager
-from custom_components.multiscrape.http_session import create_http_session
-from custom_components.multiscrape.scraper import create_scraper
-
 from .api import GatewayClient
 from .const import DOMAIN, RENAMED_KEYS, RETIRED_SENSOR_KEYS
-from .device import build_device_info
-from .util import (
-    build_connection_status_conf,
-    build_hardware_conf,
-    build_lan_conf,
-    build_scraper_conf,
-    build_wifi_conf,
-    build_wireless_conf,
-    entity_object_id,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,8 +61,43 @@ HARDWARE_CONFIG_NAME = "xfinity_gateway_hardware"
 WIRELESS_CONFIG_NAME = "xfinity_gateway_wireless"
 
 
+def import_multiscrape_modules() -> None:
+    """Import the modules that need multiscrape.
+
+    multiscrape is a custom integration this one only requires to be
+    installed, so nothing that imports it may run at module level: the config
+    flow has to be able to load and abort cleanly when it's missing. Blocking,
+    so run it in the import executor.
+    """
+    importlib.import_module("bs4")  # installed with multiscrape
+    for module in ("coordinator", "file", "http_session", "scraper"):
+        importlib.import_module(f"custom_components.multiscrape.{module}")
+    importlib.import_module(f"{__name__}.util")
+    importlib.import_module(f"{__name__}.device")
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Xfinity Gateway from a config entry."""
+    await hass.async_add_import_executor_job(import_multiscrape_modules)
+    from custom_components.multiscrape.coordinator import (  # noqa: PLC0415
+        create_content_request_manager,
+        create_multiscrape_coordinator,
+    )
+    from custom_components.multiscrape.file import create_file_manager  # noqa: PLC0415
+    from custom_components.multiscrape.http_session import create_http_session  # noqa: PLC0415
+    from custom_components.multiscrape.scraper import create_scraper  # noqa: PLC0415
+
+    from .device import build_device_info  # noqa: PLC0415
+    from .util import (  # noqa: PLC0415
+    build_connection_status_conf,
+    build_hardware_conf,
+    build_lan_conf,
+    build_scraper_conf,
+    build_wifi_conf,
+    build_wireless_conf,
+    entity_object_id,
+    )
+
     conf = entry.data
     scraper_conf = build_scraper_conf(conf)
 
@@ -232,6 +250,8 @@ def _async_migrate_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
     passes, since one rename can free the ID another one needs (Product Type
     moves off "..._model" before Model can take it).
     """
+    from .util import entity_object_id  # noqa: PLC0415
+
     registry = er.async_get(hass)
     retired = {f"xfinity_gateway_{key}" for key in RETIRED_SENSOR_KEYS}
     for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
