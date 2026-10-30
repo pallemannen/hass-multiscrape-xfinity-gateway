@@ -209,13 +209,13 @@ class GatewayFieldSensor(XfinityEntity, SensorEntity):
         )
         self._field_key = field.key
         self._attr_icon = STATIC_ICONS.get(field.key)
-        self._selector = build_selector(hass, field.name, field.select)
+        self._sensor_selector = build_selector(hass, field.name, field.select)
 
     def _update_sensor(self) -> None:
         """Update state from the scraper data."""
         try:
             value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
+                self._sensor_selector, self._name, context=self.coordinator.scrape_context
             )
         except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
             self.coordinator.request_reauth()
@@ -242,7 +242,7 @@ class NumericGatewayFieldSensor(GatewayFieldSensor):
         """Update state from the scraper data, parsed as an int."""
         try:
             raw_value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
+                self._sensor_selector, self._name, context=self.coordinator.scrape_context
             )
         except Exception as exception:  # noqa: BLE001
             self.coordinator.request_reauth()
@@ -287,7 +287,7 @@ class MemoryFieldSensor(GatewayFieldSensor):
         """Update state from the scraper data, parsed as an integer MB value."""
         try:
             raw_value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
+                self._sensor_selector, self._name, context=self.coordinator.scrape_context
             )
         except Exception as exception:  # noqa: BLE001
             self.coordinator.request_reauth()
@@ -322,7 +322,7 @@ class ProcessorSpeedSensor(GatewayFieldSensor):
         """Update state from the scraper data, parsed as an integer MHz value."""
         try:
             raw_value = self.scraper.scrape(
-                self._selector, self._name, context=self.coordinator.scrape_context
+                self._sensor_selector, self._name, context=self.coordinator.scrape_context
             )
         except Exception as exception:  # noqa: BLE001
             self.coordinator.request_reauth()
@@ -682,7 +682,7 @@ class CodewordSensor(GatewayFieldSensor):
     def __init__(self, hass: HomeAssistant, coordinator, scraper, field, device_info) -> None:
         """Initialize the sensor."""
         super().__init__(hass, coordinator, scraper, field, device_info)
-        self._selector = build_list_selector(hass, field.name, field.select)
+        self._sensor_selector = build_list_selector(hass, field.name, field.select)
 
     def _update_sensor(self) -> None:
         """Update state from the scraper data."""
