@@ -45,7 +45,7 @@ class WirelessEntity(XfinityEntity):
         self.entity_id = async_generate_entity_id(
             self._entity_id_format, entity_object_id(name), hass=hass
         )
-        self._script_selector = Selector(
+        self._sensor_selector = Selector(
             hass, {CONF_NAME: name, CONF_SELECT: Template(WIRELESS_SCRIPT_SELECTOR, hass)}
         )
         self._script = ""
@@ -54,7 +54,7 @@ class WirelessEntity(XfinityEntity):
         """Keep the page's script for the radio/WPS variables."""
         try:
             self._script = self.scraper.scrape(
-                self._script_selector, self._name, context=self.coordinator.scrape_context
+                self._sensor_selector, self._name, context=self.coordinator.scrape_context
             ) or ""
         except Exception as exception:  # noqa: BLE001 - mirrors multiscrape's own broad on-error handling
             self.coordinator.request_reauth()

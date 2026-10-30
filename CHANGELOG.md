@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.4] - 2026-10-30
+
+### Fixed
+
+- Works with multiscrape 9.2.0. Its entity base class now requires a `_restore_value` method and a `_sensor_selector` on every entity, so without this release most Xfinity entities fail to load after updating multiscrape. multiscrape 9.1 keeps working.
+
+### Changed
+
+- With multiscrape 9.2.0, sensors that read a single field, and the Wi-Fi switches and Wi-Fi Mode, have their CSS selection done off the event loop.
+
 ## [1.7.3] - 2026-10-19
 
 ### Fixed
